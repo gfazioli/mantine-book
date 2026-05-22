@@ -19,60 +19,27 @@ import '@gfazioli/mantine-book/styles.layer.css';
 
 ## Usage
 
-Explore all available props and see the component in action:
+`Book` renders a realistic page-turn book with corner-driven curl, drag interaction, and click-to-flip. Pages are declared as `<Book.Page>` children — any JSX content goes inside.
+
+```tsx
+import { Book } from '@gfazioli/mantine-book';
+
+function Demo() {
+  return (
+    <Book width={600} height={400} showCover>
+      <Book.Page hard>Cover</Book.Page>
+      <Book.Page>Page 1</Book.Page>
+      <Book.Page>Page 2</Book.Page>
+      <Book.Page hard>Back cover</Book.Page>
+    </Book>
+  );
+}
+```
 
 <Demo data={demos.configurator} />
 
 ## Controlled
 
-The Book component is fully controlled through the `value` prop. Here's an example of controlling the BOOK state:
+Pass `currentPage` and listen to `onPageChange` to drive the book from external state (e.g. a button bar, a deep link, an analytics handler).
 
 <Demo data={demos.controlled} />
-
-## Colors
-
-The Book component supports all Mantine theme colors. Use the `color` prop to set the BOOK color:
-
-<Demo data={demos.colors} />
-
-## Animations
-
-Add visual feedback with built-in animations. The component supports multiple animation types:
-
-- **pulse**: Smooth pulsing effect (default)
-- **flash**: Quick flashing
-- **breathe**: Slow breathing effect
-- **blink**: Regular blinking
-- **glow**: Glowing effect with increased intensity
-
-<Demo data={demos.animations} />
-
-## Labels
-
-Add descriptive labels to your BOOK indicators with full customization support:
-
-<Demo data={demos.labels} />
-
-The `label` prop accepts any React node, allowing you to use custom components like badges, icons, or formatted text. Use `labelPosition` to control whether the label appears on the left or right side of the BOOK.
-
-## Styles API
-
-`Book` supports [Styles API](https://mantine.dev/styles/styles-api/), you can add styles to any inner element of the component with `classNames` prop. Follow [Styles API](https://mantine.dev/styles/styles-api/) documentation to learn more.
-
-You can customize the appearance of the `Book` component using the Styles API. This allows you to modify styles for various parts of the component, such as the root, book, and label.
-
-<Demo data={demos.stylesApi} />
-
-## Use Cases
-
-### System Status Panel
-
-Monitor multiple system components with organized BOOK indicators:
-
-<Demo data={demos.statusPanel} />
-
-### DEFCON Alert System
-
-A fun example showing how to build a DEFCON (Defense Readiness Condition) alert system with animated LEDs:
-
-<Demo data={demos.defcon} />
