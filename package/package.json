@@ -1,0 +1,52 @@
+{
+  "name": "@gfazioli/mantine-book",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Realistic page-turn book component for React applications built with Mantine. Drag any corner to curl the page like iBooks, click the edge to auto-flip, with hard covers, soft interior pages, single + spread layouts, and full touch support.",
+  "homepage": "https://gfazioli.github.io/mantine-book/",
+  "packageManager": "yarn@4.0.1",
+  "license": "MIT",
+  "author": "Giovambattista Fazioli <giovambattista.fazioli@gmail.com>",
+  "keywords": [
+    "book",
+    "component",
+    "curl",
+    "ebook",
+    "extension",
+    "flip",
+    "ibooks",
+    "mantine",
+    "mantine-ui",
+    "mantine-v9",
+    "page-flip",
+    "page-turn",
+    "react",
+    "react-component",
+    "typescript"
+  ],
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.mjs",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/index.d.mts",
+        "default": "./dist/esm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./styles.css": "./dist/styles.css",
+    "./styles.layer.css": "./dist/styles.layer.css"
+  },
+  "repository": "https://github.com/gfazioli/mantine-book.git",
+  "peerDependencies": {
+    "@mantine/core": ">=7.0.0",
+    "@mantine/hooks": ">=7.0.0",
+    "react": "^18.x || ^19.x",
+    "react-dom": "^18.x || ^19.x"
+  },
+  "bugs": "https://github.com/gfazioli/mantine-book/issues"
+}
