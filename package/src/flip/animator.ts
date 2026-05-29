@@ -129,8 +129,5 @@ export function useFlipAnimator(): FlipAnimator {
 
   // Memoise so consumers can safely use the returned object as a
   // `useEffect` / `useCallback` dependency without re-firing every render.
-  return useMemo(
-    () => ({ start, stop: cancel, isActive }),
-    [start, cancel, isActive]
-  );
+  return useMemo(() => ({ start, stop: cancel, isActive }), [start, cancel, isActive]);
 }

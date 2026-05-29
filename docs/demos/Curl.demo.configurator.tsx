@@ -49,8 +49,24 @@ export const configurator: MantineDemo = {
   code,
   centered: true,
   controls: [
-    { type: 'number', prop: 'width', initialValue: 300, libraryValue: 300, min: 160, max: 480, step: 20 },
-    { type: 'number', prop: 'height', initialValue: 420, libraryValue: 600, min: 200, max: 640, step: 20 },
+    {
+      type: 'number',
+      prop: 'width',
+      initialValue: 300,
+      libraryValue: 300,
+      min: 160,
+      max: 480,
+      step: 20,
+    },
+    {
+      type: 'number',
+      prop: 'height',
+      initialValue: 420,
+      libraryValue: 600,
+      min: 200,
+      max: 640,
+      step: 20,
+    },
     {
       type: 'number',
       prop: 'flippingTime',
