@@ -478,14 +478,50 @@ export function getBottomClipPolygon(
 }
 
 /**
+ * Clips a convex polygon to the half-plane on the same side of the line
+ * `(through, dir)` as the reference point `ref` (Sutherland–Hodgman, single
+ * edge). The line is undirected; `ref` picks which half to keep.
+ */
+function clipToHalfPlane(poly: Point[], through: Point, dir: Point, ref: Point): Point[] {
+  const normal: Point = { x: -dir.y, y: dir.x };
+  const signedSide = (p: Point) => normal.x * (p.x - through.x) + normal.y * (p.y - through.y);
+  const want = Math.sign(signedSide(ref)) || 1;
+  const inside = (p: Point) => signedSide(p) * want >= -1e-9;
+
+  const out: Point[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const ia = inside(a);
+    const ib = inside(b);
+    if (ia) {
+      out.push(a);
+    }
+    if (ia !== ib) {
+      const sa = signedSide(a);
+      const sb = signedSide(b);
+      const t = sa / (sa - sb);
+      out.push({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
+    }
+  }
+  return out;
+}
+
+/**
  * Polygon of the part of the sheet still lying FLAT (on the spine side of
  * the fold line) — i.e. the area that should keep showing the Front face
  * while the rest of the sheet has lifted into the curl. For a single bifacial
  * sheet there is no page underneath, so the Front layer must be clipped to
  * this polygon and the lifted region left transparent.
  *
- * Returns the full page rectangle when the fold geometry is too degenerate
- * to carve a meaningful flat region (start of the gesture).
+ * Implemented by clipping the page rectangle to the spine side of the crease
+ * line. The crease passes through any tracked border intersection and runs at
+ * `π/2 + angle/2` (verified against the two-intersection cases). This single
+ * half-plane clip carves the front correctly in EVERY regime — small folds,
+ * folds past the spine, and folds whose crease only grazes one border — where
+ * the older edge-case branches returned the full rectangle and left the front
+ * uncarved. With no border intersection the page is either fully flat (near
+ * rest) or fully lifted (near complete), decided by progress.
  */
 export function getFlatPartPolygon(
   geo: FoldGeometry,
@@ -494,37 +530,29 @@ export function getFlatPartPolygon(
   pageHeight: number,
   direction: FlipDirection = 'forward'
 ): Point[] {
-  const spineTop: Point = { x: 0, y: 0 };
-  const spineBottom: Point = { x: 0, y: pageHeight };
-  const farTop: Point = { x: pageWidth, y: 0 };
-  const farBottom: Point = { x: pageWidth, y: pageHeight };
-  const full: Point[] = [spineTop, farTop, farBottom, spineBottom];
+  const rect: Point[] = [
+    { x: 0, y: 0 },
+    { x: pageWidth, y: 0 },
+    { x: pageWidth, y: pageHeight },
+    { x: 0, y: pageHeight },
+  ];
+
+  const intersects = [geo.topIntersect, geo.sideIntersect, geo.bottomIntersect].filter(
+    (p): p is Point => p !== null
+  );
 
   let pts: Point[];
-  if (corner === 'top') {
-    if (!geo.topIntersect) {
-      pts = full;
-    } else if (geo.sideIntersect) {
-      // Fold crosses the top and right borders: flat area is everything to
-      // the spine side, keeping the still-flat bottom-right corner.
-      pts = [spineTop, geo.topIntersect, geo.sideIntersect, farBottom, spineBottom];
-    } else if (geo.bottomIntersect) {
-      // Fold crosses top → bottom: flat area is the spine-side slab.
-      pts = [spineTop, geo.topIntersect, geo.bottomIntersect, spineBottom];
-    } else {
-      pts = full;
-    }
+  if (intersects.length === 0) {
+    // Crease misses every border: page is fully flat (near rest) or fully
+    // lifted (near complete).
+    pts = geo.progress < 50 ? rect : [];
   } else {
-    // corner === 'bottom' — mirror of the above around the horizontal midline.
-    if (!geo.bottomIntersect) {
-      pts = full;
-    } else if (geo.sideIntersect) {
-      pts = [spineBottom, geo.bottomIntersect, geo.sideIntersect, farTop, spineTop];
-    } else if (geo.topIntersect) {
-      pts = [spineBottom, geo.bottomIntersect, geo.topIntersect, spineTop];
-    } else {
-      pts = full;
-    }
+    const theta = Math.PI / 2 + geo.angle / 2;
+    const dir: Point = { x: Math.cos(theta), y: Math.sin(theta) };
+    // A point that always stays flat: the spine corner opposite the grabbed
+    // one. Keep the page half on that side of the crease.
+    const ref: Point = corner === 'top' ? { x: 0, y: pageHeight } : { x: 0, y: 0 };
+    pts = clipToHalfPlane(rect, intersects[0], dir, ref);
   }
 
   // For a BACK fold the resting sheet lies on the left with its hinge on the
@@ -540,6 +568,78 @@ export function distance(a: Point, b: Point): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return Math.sqrt(dx * dx + dy * dy);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Drag clamping — keep the cursor inside the corner's valid fold     */
+/*  domain so the curl never degenerates, freezes, or inverts even     */
+/*  when the pointer is dragged far outside the sheet.                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Limits `point` to a circle of `radius` around `center`: if it is already
+ * inside, it is returned unchanged; otherwise it is projected radially onto
+ * the circle. Faithful to StPageFlip's `Helper.LimitPointToCircle`.
+ */
+function limitPointToCircle(center: Point, radius: number, point: Point): Point {
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= radius || dist === 0) {
+    return point;
+  }
+  return { x: center.x + (dx / dist) * radius, y: center.y + (dy / dist) * radius };
+}
+
+/**
+ * Clamp the (absolute, page-local) pointer position to a valid fold position,
+ * a faithful port of StPageFlip's `FlipCalculation.checkPositionAtCenterLine`.
+ *
+ * The fold is driven by the ABSOLUTE pointer position (NOT a delta from the
+ * corner), exactly as the reference: this is what lets a grab anywhere along
+ * the edge — including mid-height — produce a clean, organic curl, because the
+ * vertical component (`top`) stays meaningful as the page is swept toward the
+ * spine.
+ *
+ * Two limits keep the curl bounded without ever degenerating:
+ *  1. The pointer is limited to a circle of radius = page width around the
+ *     NEAR spine corner (top → (0,0), bottom → (0,H)) — the page edge can't
+ *     reach past its own length from the hinge.
+ *  2. Once the rotated rectangle crosses the spine, the FAR corner is limited
+ *     to a circle of radius = the page diagonal around the far spine corner,
+ *     so a full turn settles cleanly instead of inverting.
+ *
+ * Pure and corner-symmetric.
+ */
+export function clampCorner(
+  cursor: Point,
+  pageWidth: number,
+  pageHeight: number,
+  corner: FlipCorner
+): Point {
+  const spineNear: Point = corner === 'top' ? { x: 0, y: 0 } : { x: 0, y: pageHeight };
+  const spineFar: Point = corner === 'top' ? { x: 0, y: pageHeight } : { x: 0, y: 0 };
+
+  // 1. Limit to the reach disc (radius = page width) around the near hinge.
+  let result = limitPointToCircle(spineNear, pageWidth, cursor);
+
+  // 2. Once the rotated rect crosses the spine, limit the far corner too.
+  let geo: FoldGeometry | null = null;
+  try {
+    geo = computeFold({ cursor: result, pageWidth, pageHeight, corner, direction: 'forward' });
+  } catch {
+    geo = null;
+  }
+  if (geo) {
+    const crossing = corner === 'top' ? geo.rect.bottomRight : geo.rect.topRight;
+    const farCorner = corner === 'top' ? geo.rect.topLeft : geo.rect.bottomLeft;
+    if (crossing.x <= 0) {
+      const diagonal = Math.hypot(pageWidth, pageHeight);
+      result = limitPointToCircle(spineFar, diagonal, farCorner);
+    }
+  }
+
+  return result;
 }
 
 /* ------------------------------------------------------------------ */

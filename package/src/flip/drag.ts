@@ -32,7 +32,7 @@
  *   corner and dragging across the spine).
  */
 
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Point } from './geometry';
 
 /** One sample of the pointer's position at a given timestamp. */
@@ -243,66 +243,43 @@ export function useDragController(options: DragControllerOptions = {}): DragCont
     return fn ? fn(clientX, clientY) : { x: clientX, y: clientY };
   }, []);
 
-  const onPointerDown = useCallback(
-    (event: React.PointerEvent<HTMLElement>) => {
-      // Reject secondary buttons (right click, middle click). Touch and pen
-      // both report button=0.
-      if (event.pointerType === 'mouse' && event.button !== 0) {
-        return;
-      }
-      const now = performance.now();
-      const local = toLocal(event.clientX, event.clientY);
-      const sample: DragSample = { t: now, x: local.x, y: local.y };
+  // Move / release are handled on `window` (not the element) for the whole
+  // drag, so the gesture keeps tracking — and the release is never missed —
+  // no matter how far the pointer roams across the page or outside the window.
+  // Handlers are stored in refs and attached/detached imperatively so the
+  // add/remove calls always reference the exact same function objects.
+  const moveHandlerRef = useRef<(e: PointerEvent) => void>(() => {});
+  const upHandlerRef = useRef<(e: PointerEvent) => void>(() => {});
+  const cancelHandlerRef = useRef<(e: PointerEvent) => void>(() => {});
 
-      stateRef.current = {
-        pointerId: event.pointerId,
-        startTime: now,
-        startPoint: local,
-        lastPoint: local,
-        samples: [sample],
-        active: true,
-        awaitingScrollDecision: mobileScrollSupport && event.pointerType !== 'mouse',
-      };
+  const detachWindow = useCallback(() => {
+    window.removeEventListener('pointermove', moveHandlerRef.current);
+    window.removeEventListener('pointerup', upHandlerRef.current);
+    window.removeEventListener('pointercancel', cancelHandlerRef.current);
+  }, []);
 
-      // Capture the pointer so we keep receiving moves even outside the
-      // element (e.g. when the user drags past the book edges).
-      try {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      } catch {
-        // setPointerCapture can throw if the pointer is already released —
-        // safe to ignore.
-      }
-
-      optionsRef.current.onStart?.(local);
-    },
-    [mobileScrollSupport, toLocal]
-  );
-
-  const onPointerMove = useCallback(
-    (event: React.PointerEvent<HTMLElement>) => {
+  const handleMove = useCallback(
+    (clientX: number, clientY: number, pointerId: number) => {
       const state = stateRef.current;
-      if (!state || state.pointerId !== event.pointerId) {
+      if (!state || state.pointerId !== pointerId) {
         return;
       }
-
       const now = performance.now();
-      const local = toLocal(event.clientX, event.clientY);
+      const local = toLocal(clientX, clientY);
       const sample: DragSample = { t: now, x: local.x, y: local.y };
 
-      // For touch input, wait for the gesture to bias horizontally before
-      // we claim it as a drag — otherwise pure vertical scrolls hit our
-      // handler. Threshold: a quarter of `swipeDistance` to feel snappy.
+      // Touch: wait for a horizontal-biased gesture before claiming the drag,
+      // so vertical scroll wins otherwise.
       if (state.awaitingScrollDecision) {
         const dx = Math.abs(local.x - state.startPoint.x);
         const dy = Math.abs(local.y - state.startPoint.y);
         if (dx < swipeDistance / 4 && dy < swipeDistance / 4) {
-          // Movement still tiny — keep waiting.
           return;
         }
         if (dy > dx) {
-          // Vertical-biased — release the gesture (the scroll wins).
           state.active = false;
           stateRef.current = null;
+          detachWindow();
           return;
         }
         state.awaitingScrollDecision = false;
@@ -310,31 +287,21 @@ export function useDragController(options: DragControllerOptions = {}): DragCont
 
       state.lastPoint = local;
       state.samples = pruneSampleWindow([...state.samples, sample], now, velocityWindowMs);
-
       optionsRef.current.onMove?.(local);
     },
-    [swipeDistance, toLocal, velocityWindowMs]
+    [swipeDistance, toLocal, velocityWindowMs, detachWindow]
   );
 
   const finishDrag = useCallback(
-    (event: React.PointerEvent<HTMLElement>, cancelled: boolean) => {
+    (pointerId: number, cancelled: boolean) => {
       const state = stateRef.current;
-      if (!state || state.pointerId !== event.pointerId) {
+      if (!state || state.pointerId !== pointerId) {
         return;
       }
-
-      try {
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-      } catch {
-        // Pointer capture might already be lost — ignore.
-      }
-
       stateRef.current = null;
+      detachWindow();
 
       if (cancelled) {
-        // We still emit a release so the consumer can revert the curl.
         optionsRef.current.onRelease?.({
           kind: 'click',
           duration: performance.now() - state.startTime,
@@ -352,12 +319,7 @@ export function useDragController(options: DragControllerOptions = {}): DragCont
         y: state.lastPoint.y - state.startPoint.y,
       };
       const velocity = computeReleaseVelocity(state.samples);
-      const kind = classifyGesture({
-        delta,
-        duration,
-        swipeDistance,
-        swipeTimeThreshold,
-      });
+      const kind = classifyGesture({ delta, duration, swipeDistance, swipeTimeThreshold });
 
       optionsRef.current.onRelease?.({
         kind,
@@ -367,22 +329,60 @@ export function useDragController(options: DragControllerOptions = {}): DragCont
         velocity,
       });
     },
-    [swipeDistance, swipeTimeThreshold]
+    [swipeDistance, swipeTimeThreshold, detachWindow]
   );
 
-  const onPointerUp = useCallback(
-    (event: React.PointerEvent<HTMLElement>) => finishDrag(event, false),
-    [finishDrag]
+  // Keep the window handler refs current.
+  moveHandlerRef.current = (e: PointerEvent) => handleMove(e.clientX, e.clientY, e.pointerId);
+  upHandlerRef.current = (e: PointerEvent) => finishDrag(e.pointerId, false);
+  cancelHandlerRef.current = (e: PointerEvent) => finishDrag(e.pointerId, true);
+
+  const onPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      // Reject secondary buttons (right/middle click). Touch and pen report 0.
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+      const now = performance.now();
+      const local = toLocal(event.clientX, event.clientY);
+      stateRef.current = {
+        pointerId: event.pointerId,
+        startTime: now,
+        startPoint: local,
+        lastPoint: local,
+        samples: [{ t: now, x: local.x, y: local.y }],
+        active: true,
+        awaitingScrollDecision: mobileScrollSupport && event.pointerType !== 'mouse',
+      };
+
+      // Listen on window for the rest of the gesture (move + up + cancel),
+      // re-attaching fresh in case a previous drag left handlers behind.
+      detachWindow();
+      window.addEventListener('pointermove', moveHandlerRef.current);
+      window.addEventListener('pointerup', upHandlerRef.current);
+      window.addEventListener('pointercancel', cancelHandlerRef.current);
+
+      optionsRef.current.onStart?.(local);
+    },
+    [mobileScrollSupport, toLocal, detachWindow]
   );
-  const onPointerCancel = useCallback(
-    (event: React.PointerEvent<HTMLElement>) => finishDrag(event, true),
-    [finishDrag]
-  );
+
+  // Always detach on unmount.
+  useEffect(() => detachWindow, [detachWindow]);
 
   const isDragging = useCallback(() => stateRef.current?.active === true, []);
+  const noop = useCallback(() => {}, []);
 
+  // Move/up/cancel are handled on window; the element only needs pointerdown.
+  // The no-op handlers keep the spread-on-element API intact and harmless.
   return useMemo(
-    () => ({ onPointerDown, onPointerMove, onPointerUp, onPointerCancel, isDragging }),
-    [onPointerDown, onPointerMove, onPointerUp, onPointerCancel, isDragging]
+    () => ({
+      onPointerDown,
+      onPointerMove: noop,
+      onPointerUp: noop,
+      onPointerCancel: noop,
+      isDragging,
+    }),
+    [onPointerDown, noop, isDragging]
   );
 }

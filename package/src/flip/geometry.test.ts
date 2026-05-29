@@ -144,7 +144,12 @@ describe('pointsToCssPolygon', () => {
   it('returns null for fewer than 3 points (renderer should skip clip-path)', () => {
     expect(pointsToCssPolygon([])).toBeNull();
     expect(pointsToCssPolygon([{ x: 1, y: 1 }])).toBeNull();
-    expect(pointsToCssPolygon([{ x: 1, y: 1 }, { x: 2, y: 2 }])).toBeNull();
+    expect(
+      pointsToCssPolygon([
+        { x: 1, y: 1 },
+        { x: 2, y: 2 },
+      ])
+    ).toBeNull();
   });
 });
 

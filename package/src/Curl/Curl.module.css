@@ -83,12 +83,6 @@
   z-index: 5;
 }
 
-/* Bottom-corner fold: the geometry places the flap rect at y ∈ [-H, 0], so
-   the flap content is lifted by one page height to meet the clip. */
-.curlSheetBottom {
-  transform: translateY(-100%);
-}
-
 .shadowLayer {
   position: absolute;
   inset: 0;
