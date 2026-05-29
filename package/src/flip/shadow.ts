@@ -69,6 +69,18 @@ export interface ShadowInput {
    * Decays linearly to 0 as `progress → 100`. `[0, 1]`. Defaults to `0.5`.
    */
   maxOpacity?: number;
+  /**
+   * The corner the user actually grabbed. When provided it is used
+   * verbatim; when omitted the function falls back to inferring it from
+   * the sign of `geo.angle` (a heuristic that is wrong for forward + top).
+   * Always pass it from the drag controller for correct shadows.
+   */
+  corner?: 'top' | 'bottom';
+  /**
+   * The flip direction. When provided it is used verbatim; when omitted
+   * it is inferred from the sign of `geo.angle`.
+   */
+  direction?: FlipDirection;
 }
 
 /**
@@ -187,12 +199,13 @@ export function computeShadowGeometry(input: ShadowInput): ShadowGeometry {
 
   // We need at least one anchor point and a finite progress; otherwise
   // bail and let the renderer skip the shadow layer entirely.
-  const direction: FlipDirection = geo.angle <= 0 ? 'forward' : 'back';
-  const corner: 'top' | 'bottom' = geo.angle >= 0 ? 'top' : 'bottom';
-  // ↑ The `corner` derivation is a small heuristic for now — the consumer
-  // will pass the actual corner from the drag controller in a follow-up
-  // pass; here we use the rotation sign as a stand-in so the function
-  // stays pure and self-contained for unit testing.
+  //
+  // Prefer the explicit corner/direction the consumer passes from the drag
+  // controller; fall back to inferring them from the rotation sign so the
+  // function stays usable (and unit-testable) on its own. The inference is
+  // wrong for forward + top, which is exactly why the explicit fields exist.
+  const direction: FlipDirection = input.direction ?? (geo.angle <= 0 ? 'forward' : 'back');
+  const corner: 'top' | 'bottom' = input.corner ?? (geo.angle >= 0 ? 'top' : 'bottom');
 
   const start = shadowStartPoint(geo, corner);
   if (!start) {

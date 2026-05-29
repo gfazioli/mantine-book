@@ -1,3 +1,2 @@
-export { configurator } from './Book.demo.configurator';
-export { controlled } from './Book.demo.controlled';
-export { usage } from './Book.demo.usage';
+export { configurator } from './Curl.demo.configurator';
+export { usage } from './Curl.demo.usage';

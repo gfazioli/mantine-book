@@ -19,18 +19,25 @@ import '@gfazioli/mantine-book/styles.layer.css';
 
 ## Usage
 
-`Book` renders a realistic page-turn book with corner-driven curl, drag interaction, and click-to-flip. Pages are declared as `<Book.Page>` children — any JSX content goes inside.
+`Curl` curls a single sheet of paper. It has two faces declared as
+`<Curl.Front>` and `<Curl.Back>` children — grab the right edge (top or
+bottom) and drag toward the left to fold the sheet. The play-zone is twice
+the sheet width: the sheet rests in the right half and sweeps left as it
+curls. `Curl.Back` is optional — when omitted the back renders blank.
 
 <Demo data={demos.usage} />
 
 ## Configurator
 
-Tweak the layout, the auto-flip duration, and the shadow intensity. Click the right edge of the spread to flip forward, the left edge to flip back.
+Tweak the sheet size, the settle duration, the completion threshold, and
+the shadow intensity. Drag the right edge and release: past the threshold
+the sheet settles open (showing the Back); below it, it settles back to rest.
 
 <Demo data={demos.configurator} />
 
-## Controlled
+## Content alignment
 
-Pass `currentPage` and listen to `onPageChange` to drive the book from external state (e.g. a button bar, a deep link, an analytics handler). Each external change animates with the same curl as a click.
-
-<Demo data={demos.controlled} />
+Each face clips overflow and centers smaller content by default. Use the
+`align` prop (on `<Curl>` or per-face on `<Curl.Front>` / `<Curl.Back>`) to
+change placement. Images, SVG and video are scaled to fit (`object-fit:
+contain`).

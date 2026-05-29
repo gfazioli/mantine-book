@@ -1,14 +1,13 @@
-export { Book } from './Book';
+export { Curl } from './Curl/Curl';
 export type {
-  BookBaseProps,
-  BookCssVariables,
-  BookFactory,
-  BookProps,
-  BookStylesNames,
-} from './Book';
+  CurlBaseProps,
+  CurlCssVariables,
+  CurlFactory,
+  CurlProps,
+  CurlStylesNames,
+} from './Curl/Curl';
 
-export { BookPage } from './BookPage/BookPage';
-export type { BookPageProps } from './BookPage/BookPage';
+export type { CurlFaceAlign, CurlFaceProps } from './CurlFace/CurlFace';
 
-export { useBookContext } from './Book.context';
-export type { BookContextValue, BookLayoutMode } from './Book.context';
+// Pure flip math — exported for advanced consumers / a future Book.
+export type { FlipCorner, FlipDirection, FoldGeometry, Point } from './flip/geometry';

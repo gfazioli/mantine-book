@@ -5,7 +5,7 @@ const getComponentPath = (componentPath: string) =>
   path.join(process.cwd(), 'package/src', componentPath);
 
 generateDeclarations({
-  componentsPaths: [getComponentPath('Book.tsx'), getComponentPath('BookPage/BookPage.tsx')],
+  componentsPaths: [getComponentPath('Curl/Curl.tsx'), getComponentPath('CurlFace/CurlFace.tsx')],
   tsConfigPath: path.join(process.cwd(), 'tsconfig.json'),
   outputPath: path.join(process.cwd(), 'docs'),
 });

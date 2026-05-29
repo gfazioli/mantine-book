@@ -122,6 +122,32 @@ describe('computeShadowGeometry', () => {
     expect(shadows.drop).toBeNull();
     expect(shadows.inner).toBeNull();
   });
+
+  it('honors an explicit corner/direction over the angle-sign heuristic (forward + bottom)', () => {
+    // forward + bottom yields geo.angle < 0, which the heuristic would
+    // misread as corner:'top'. Passing corner explicitly must use it.
+    const geo = basicFold({ corner: 'bottom', direction: 'forward' });
+    const explicit = computeShadowGeometry({
+      geo,
+      pageWidth: PAGE_WIDTH,
+      pageHeight: PAGE_HEIGHT,
+      corner: 'bottom',
+      direction: 'forward',
+    });
+    const inferred = computeShadowGeometry({
+      geo,
+      pageWidth: PAGE_WIDTH,
+      pageHeight: PAGE_HEIGHT,
+    });
+    // Both still produce a shadow, but the anchor differs because the
+    // explicit corner picks a different start point than the heuristic.
+    expect(explicit.drop).not.toBeNull();
+    const sameOrigin =
+      inferred.drop != null &&
+      explicit.drop!.origin.x === inferred.drop.origin.x &&
+      explicit.drop!.origin.y === inferred.drop.origin.y;
+    expect(sameOrigin).toBe(false);
+  });
 });
 
 describe('svgLinearGradientAttrs', () => {

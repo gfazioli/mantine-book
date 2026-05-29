@@ -1,5 +1,5 @@
-import { BookStylesApi } from './Book.styles-api';
+import { CurlStylesApi } from './Curl.styles-api';
 
 export const STYLES_API_DATA = {
-  Book: BookStylesApi,
+  Curl: CurlStylesApi,
 };
