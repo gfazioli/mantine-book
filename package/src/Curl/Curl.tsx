@@ -20,7 +20,6 @@ import {
   computeFold,
   convertToSpread,
   type FlipCorner,
-  type FlipDirection,
   type FoldGeometry,
   getFlatPartPolygon,
   getFlippingPageLocalPolygon,
@@ -308,12 +307,16 @@ export const Curl = factory<CurlFactory>((_props) => {
   const computeFor = useCallback(
     (cursor: Point): FoldGeometry | null => {
       try {
+        // Always compute as a forward fold (the sheet is logically on the
+        // right). For the BACK direction the cursor is pre-mirrored in
+        // getLocalPoint and the whole group is flipped with a CSS scaleX(-1),
+        // so the math stays the proven forward path.
         return computeFold({
           cursor,
           pageWidth: W,
           pageHeight: H,
           corner: cornerRef.current,
-          direction: flippedRef.current ? 'back' : 'forward',
+          direction: 'forward',
         });
       } catch {
         return null;
@@ -418,33 +421,42 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   /* --- Face content (rendered once, React-owned) ---------------- */
 
-  const frontNode = <div {...getStyles('face', { style: frontFlex })}>{faces.front?.content}</div>;
-  const backNode = <div {...getStyles('face', { style: backFlex })}>{faces.back?.content}</div>;
+  // When flipped, the whole group is mirrored with scaleX(-1); counter-mirror
+  // the face contents so text/images stay readable.
+  const faceMirror = flipped ? { transform: 'scaleX(-1)' } : undefined;
+  const frontNode = (
+    <div {...getStyles('face', { style: { ...frontFlex, ...faceMirror } })}>
+      {faces.front?.content}
+    </div>
+  );
+  const backNode = (
+    <div {...getStyles('face', { style: { ...backFlex, ...faceMirror } })}>
+      {faces.back?.content}
+    </div>
+  );
 
   /* --- Derived per-frame geometry ------------------------------- */
 
   const folding = fold !== null;
 
-  // Direction of the current fold / resting side. forward = A on the right
-  // curling to B; back = B on the left curling back to A.
-  const dir: FlipDirection = flipped ? 'back' : 'forward';
   // The face lying flat at rest, and the one shown on the lifting flap.
+  // Geometry is ALWAYS computed as forward (sheet logically on the right);
+  // the back direction is realised by mirroring the group (see render).
   const restFaceNode = flipped ? backNode : frontNode;
   const liftFaceNode = flipped ? frontNode : backNode;
-  const restLeft = flipped ? 0 : W;
 
   let curlClip: string | null = null;
   let curlTransform: string | undefined;
   let flatClip: string | null = null;
 
   if (fold) {
-    const localPoly = getFlippingPageLocalPolygon(fold, cornerRef.current, dir);
+    const localPoly = getFlippingPageLocalPolygon(fold, cornerRef.current, 'forward');
     curlClip = pointsToCssPolygon(localPoly, 'px');
-    const globalPos = convertToSpread(fold.position, dir, W);
+    const globalPos = convertToSpread(fold.position, 'forward', W);
     curlTransform = `translate3d(${globalPos.x.toFixed(3)}px, ${globalPos.y.toFixed(3)}px, 0) rotate(${fold.angle.toFixed(5)}rad)`;
     // Resting face keeps only the still-flat region; the lifted area is left
     // transparent (single sheet — nothing underneath).
-    flatClip = pointsToCssPolygon(getFlatPartPolygon(fold, cornerRef.current, W, H, dir), 'px');
+    flatClip = pointsToCssPolygon(getFlatPartPolygon(fold, cornerRef.current, W, H, 'forward'), 'px');
   }
 
   const curlVisible = folding && curlClip !== null;
@@ -459,30 +471,35 @@ export const Curl = factory<CurlFactory>((_props) => {
       {...dragHandlers}
       mod={[{ folding, flipped, disabled }, mod]}
     >
-      {/* Resting face (Front at rest, Back once flipped). Full when idle;
-          clipped to the still-flat region while folding so the lifted area
-          shows through to the background (single sheet — nothing under it). */}
-      <div
-        {...getStyles('restSheet', {
-          style:
-            folding && flatClip
-              ? { left: restLeft, clipPath: flatClip, WebkitClipPath: flatClip }
-              : { left: restLeft },
-        })}
-      >
-        {restFaceNode}
-      </div>
+      {/* Mirror wrapper: the geometry is always computed forward (sheet on the
+          right). For the BACK direction we flip the whole group around the
+          centre seam so the same proven forward render plays in reverse. */}
+      <div className={classes.mirror} style={flipped ? { transform: 'scaleX(-1)' } : undefined}>
+        {/* Resting face (Front at rest, Back once flipped). Full when idle;
+            clipped to the still-flat region while folding so the lifted area
+            shows through to the background (single sheet — nothing under it). */}
+        <div
+          {...getStyles('restSheet', {
+            style:
+              folding && flatClip
+                ? { clipPath: flatClip, WebkitClipPath: flatClip }
+                : undefined,
+          })}
+        >
+          {restFaceNode}
+        </div>
 
-      {/* The lifting flap (the opposite face). Always mounted (hidden at rest)
-          so content + handlers persist and aren't re-created each fold. */}
-      <div
-        {...getStyles('curlSheet', {
-          style: curlVisible
-            ? { transform: curlTransform, clipPath: curlClip!, WebkitClipPath: curlClip! }
-            : { display: 'none' },
-        })}
-      >
-        {liftFaceNode}
+        {/* The lifting flap (the opposite face). Always mounted (hidden at rest)
+            so content + handlers persist and aren't re-created each fold. */}
+        <div
+          {...getStyles('curlSheet', {
+            style: curlVisible
+              ? { transform: curlTransform, clipPath: curlClip!, WebkitClipPath: curlClip! }
+              : { display: 'none' },
+          })}
+        >
+          {liftFaceNode}
+        </div>
       </div>
 
       {/* TODO(shadows): the curl shadows (crease + drop) are temporarily
