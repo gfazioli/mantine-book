@@ -28,9 +28,9 @@
   user-select: none;
   -webkit-user-select: none;
   touch-action: pan-y;
-  /* Confine the lifting flap to the play-zone so a steep curl never spills
-     past the component bounds. */
-  overflow: hidden;
+  /* No overflow clipping — the lifting flap is allowed to extend past the
+     play-zone (as in iBooks). The fold math + the x ≤ W clamp keep it bounded. */
+  overflow: visible;
 }
 
 .mirror {

@@ -339,10 +339,23 @@ export const Curl = factory<CurlFactory>((_props) => {
   const cursorFromGrab = useCallback(
     (local: Point): Point => {
       const cornerStartY = cornerRef.current === 'top' ? 0 : H;
-      return {
-        x: W + (local.x - grabRef.current.x),
-        y: cornerStartY + (local.y - grabRef.current.y),
-      };
+      let x = W + (local.x - grabRef.current.x);
+      let y = cornerStartY + (local.y - grabRef.current.y);
+      // Clamp the dragged corner to a circle of radius W around the spine
+      // corner (x = 0, same y as the free corner). The free corner rests on
+      // this circle (distance W); dragging inward curls, and a far-away cursor
+      // rides the arc — the fold SATURATES at maximum curl instead of blowing
+      // up into a giant rotation or snapping flat. This mirrors StPageFlip's
+      // own internal spine clamp, applied up-front so the geometry never
+      // degenerates regardless of how far the pointer travels.
+      const dx = x;
+      const dy = y - cornerStartY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > W) {
+        x = (dx / dist) * W;
+        y = cornerStartY + (dy / dist) * W;
+      }
+      return { x, y };
     },
     [W, H]
   );
