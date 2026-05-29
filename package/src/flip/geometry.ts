@@ -477,6 +477,57 @@ export function getBottomClipPolygon(
   return result;
 }
 
+/**
+ * Polygon of the part of the sheet still lying FLAT (on the spine side of
+ * the fold line) — i.e. the area that should keep showing the Front face
+ * while the rest of the sheet has lifted into the curl. For a single bifacial
+ * sheet there is no page underneath, so the Front layer must be clipped to
+ * this polygon and the lifted region left transparent.
+ *
+ * Returns the full page rectangle when the fold geometry is too degenerate
+ * to carve a meaningful flat region (start of the gesture).
+ */
+export function getFlatPartPolygon(
+  geo: FoldGeometry,
+  corner: FlipCorner,
+  pageWidth: number,
+  pageHeight: number
+): Point[] {
+  const spineTop: Point = { x: 0, y: 0 };
+  const spineBottom: Point = { x: 0, y: pageHeight };
+  const farTop: Point = { x: pageWidth, y: 0 };
+  const farBottom: Point = { x: pageWidth, y: pageHeight };
+  const full: Point[] = [spineTop, farTop, farBottom, spineBottom];
+
+  if (corner === 'top') {
+    if (!geo.topIntersect) {
+      return full;
+    }
+    if (geo.sideIntersect) {
+      // Fold crosses the top and right borders: flat area is everything to
+      // the spine side, keeping the still-flat bottom-right corner.
+      return [spineTop, geo.topIntersect, geo.sideIntersect, farBottom, spineBottom];
+    }
+    if (geo.bottomIntersect) {
+      // Fold crosses top → bottom: flat area is the spine-side slab.
+      return [spineTop, geo.topIntersect, geo.bottomIntersect, spineBottom];
+    }
+    return full;
+  }
+
+  // corner === 'bottom' — mirror of the above around the horizontal midline.
+  if (!geo.bottomIntersect) {
+    return full;
+  }
+  if (geo.sideIntersect) {
+    return [spineBottom, geo.bottomIntersect, geo.sideIntersect, farTop, spineTop];
+  }
+  if (geo.topIntersect) {
+    return [spineBottom, geo.bottomIntersect, geo.topIntersect, spineTop];
+  }
+  return full;
+}
+
 /** Euclidean distance between two points. */
 export function distance(a: Point, b: Point): number {
   const dx = a.x - b.x;

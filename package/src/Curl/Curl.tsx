@@ -12,7 +12,7 @@ import {
   useProps,
   useStyles,
 } from '@mantine/core';
-import React, { useCallback, useId, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { CurlFace, type CurlFaceAlign, type CurlFaceProps } from '../CurlFace/CurlFace';
 import { useFlipAnimator } from '../flip/animator';
 import { type DragSummary, useDragController } from '../flip/drag';
@@ -21,12 +21,11 @@ import {
   convertToSpread,
   type FlipCorner,
   type FoldGeometry,
-  getBottomClipPolygon,
+  getFlatPartPolygon,
   getFlippingPageLocalPolygon,
   type Point,
   pointsToCssPolygon,
 } from '../flip/geometry';
-import { computeShadowGeometry, type ShadowSpec, svgLinearGradientAttrs } from '../flip/shadow';
 import classes from './Curl.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -121,7 +120,7 @@ const defaultProps: Partial<CurlProps> = {
   pageBackground: 'white',
   disabled: false,
   flippingTime: 600,
-  flipThreshold: 50,
+  flipThreshold: 40,
   swipeDistance: 30,
   swipeTimeThreshold: 250,
   mobileScrollSupport: true,
@@ -219,9 +218,6 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   // Unique gradient ids per instance (multiple Curls / a future Book must
   // not share SVG defs ids).
-  const uid = useId().replace(/:/g, '');
-  const dropId = `curl-drop-${uid}`;
-  const innerId = `curl-inner-${uid}`;
 
   const getStyles = useStyles<CurlFactory>({
     name: 'Curl',
@@ -245,10 +241,19 @@ export const Curl = factory<CurlFactory>((_props) => {
   /* --- Fold state ----------------------------------------------- */
 
   const [fold, setFold] = useState<FoldGeometry | null>(null);
+  // Resting state once a flip completes: the sheet lies flat on the left,
+  // showing the Back face. Forward-only in this phase.
+  const [flipped, setFlipped] = useState(false);
+  const flippedRef = useRef(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const cornerRef = useRef<FlipCorner>('top');
   const foldRef = useRef<FoldGeometry | null>(null);
   const animator = useFlipAnimator();
+
+  const setFlippedBoth = useCallback((v: boolean) => {
+    flippedRef.current = v;
+    setFlipped(v);
+  }, []);
 
   const setFoldBoth = useCallback((g: FoldGeometry | null) => {
     foldRef.current = g;
@@ -310,6 +315,13 @@ export const Curl = factory<CurlFactory>((_props) => {
   const handleStart = useCallback(
     (local: Point) => {
       animator.stop();
+      // If the sheet is already flipped (showing B), a press resets it back
+      // to the resting Front so it can be flipped again (forward-only phase).
+      if (flippedRef.current) {
+        setFlippedBoth(false);
+        setFoldBoth(null);
+        return;
+      }
       cornerRef.current = local.y < H / 2 ? 'top' : 'bottom';
       const g = computeFor(local);
       if (g) {
@@ -317,7 +329,7 @@ export const Curl = factory<CurlFactory>((_props) => {
         onFoldRef.current?.({ progress: g.progress, corner: cornerRef.current, phase: 'move' });
       }
     },
-    [H, animator, computeFor, setFoldBoth]
+    [H, animator, computeFor, setFoldBoth, setFlippedBoth]
   );
 
   const handleMove = useCallback(
@@ -343,7 +355,10 @@ export const Curl = factory<CurlFactory>((_props) => {
         return;
       }
 
-      const complete = current.progress >= threshold;
+      // Complete when dragged past the threshold, or on a fast swipe in the
+      // forward (leftward) direction even if the curl didn't reach it.
+      const swipedForward = summary.kind === 'swipe' && summary.velocity.x < 0;
+      const complete = current.progress >= threshold || swipedForward;
       const topMargin = H / 10;
       const yRest = corner === 'bottom' ? H - topMargin : topMargin;
       const yDest = corner === 'bottom' ? H : 0;
@@ -365,7 +380,10 @@ export const Curl = factory<CurlFactory>((_props) => {
         },
         onComplete: () => {
           if (complete) {
-            // Leave the sheet in its fully-curled frame (Back showing).
+            // Settle into the flat "flipped" resting state: Back lying on
+            // the left half. Drop the transient fold frame.
+            setFoldBoth(null);
+            setFlippedBoth(true);
             onFlipRef.current?.({ flipped: true });
           } else {
             setFoldBoth(null);
@@ -374,7 +392,7 @@ export const Curl = factory<CurlFactory>((_props) => {
         },
       });
     },
-    [H, W, threshold, flippingTime, animator, computeFor, setFoldBoth]
+    [H, W, threshold, flippingTime, animator, computeFor, setFoldBoth, setFlippedBoth]
   );
 
   const drag = useDragController({
@@ -407,23 +425,16 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   let curlClip: string | null = null;
   let curlTransform: string | undefined;
-  let bottomClip: string | null = null;
-  let shadows: { drop: ShadowSpec | null; inner: ShadowSpec | null } = { drop: null, inner: null };
+  let flatClip: string | null = null;
 
   if (fold) {
     const localPoly = getFlippingPageLocalPolygon(fold, cornerRef.current, 'forward');
     curlClip = pointsToCssPolygon(localPoly, 'px');
     const globalPos = convertToSpread(fold.position, 'forward', W);
     curlTransform = `translate3d(${globalPos.x.toFixed(3)}px, ${globalPos.y.toFixed(3)}px, 0) rotate(${fold.angle.toFixed(5)}rad)`;
-    bottomClip = pointsToCssPolygon(getBottomClipPolygon(fold, cornerRef.current, W, H), 'px');
-    shadows = computeShadowGeometry({
-      geo: fold,
-      pageWidth: W,
-      pageHeight: H,
-      maxOpacity: shadowOpacity ?? 0.5,
-      corner: cornerRef.current,
-      direction: 'forward',
-    });
+    // Front layer keeps only the still-flat region; the lifted area is left
+    // transparent (single sheet — nothing underneath).
+    flatClip = pointsToCssPolygon(getFlatPartPolygon(fold, cornerRef.current, W, H), 'px');
   }
 
   const curlVisible = folding && curlClip !== null;
@@ -436,23 +447,25 @@ export const Curl = factory<CurlFactory>((_props) => {
       {...getStyles('root')}
       {...others}
       {...dragHandlers}
-      mod={[{ folding, disabled }, mod]}
+      mod={[{ folding, flipped, disabled }, mod]}
     >
-      {/* Resting Front, flat, right half. Always mounted. */}
-      <div {...getStyles('restSheet')}>{frontNode}</div>
+      {/* Resting Front. Full when at rest; clipped to the flat region while
+          folding (the lifted area shows through to the background). Hidden
+          once flipped. */}
+      <div
+        {...getStyles('restSheet', {
+          style: flipped
+            ? { display: 'none' }
+            : folding && flatClip
+              ? { clipPath: flatClip, WebkitClipPath: flatClip }
+              : undefined,
+        })}
+      >
+        {frontNode}
+      </div>
 
-      {/* Area uncovered by the lifted flap (only while folding). */}
-      {folding && (
-        <div
-          {...getStyles('bottomFace', {
-            style: {
-              left: `${W}px`,
-              clipPath: bottomClip ?? undefined,
-              WebkitClipPath: bottomClip ?? undefined,
-            },
-          })}
-        />
-      )}
+      {/* Flipped resting state: Back lying flat on the left half. */}
+      {flipped && <div {...getStyles('restSheet', { style: { left: 0 } })}>{backNode}</div>}
 
       {/* The lifting flap showing the Back face. Always mounted (hidden at
           rest) so the Back content + its handlers persist and aren't
@@ -467,87 +480,10 @@ export const Curl = factory<CurlFactory>((_props) => {
         {backNode}
       </div>
 
-      {folding && (
-        <>
-          {/* Shadows. */}
-          <svg
-            {...getStyles('shadowLayer')}
-            viewBox={`0 0 ${W * 2} ${H}`}
-            width={W * 2}
-            height={H}
-            aria-hidden
-          >
-            <defs>
-              {shadows.drop &&
-                (() => {
-                  const a = svgLinearGradientAttrs(shadows.drop);
-                  return (
-                    <linearGradient
-                      id={dropId}
-                      gradientUnits="userSpaceOnUse"
-                      x1={a.x1}
-                      y1={a.y1}
-                      x2={a.x2}
-                      y2={a.y2}
-                    >
-                      {shadows.drop.stops.map((s, i) => (
-                        <stop
-                          key={i}
-                          offset={s.offset}
-                          stopColor="var(--curl-shadow-color, #000)"
-                          stopOpacity={s.opacity}
-                        />
-                      ))}
-                    </linearGradient>
-                  );
-                })()}
-              {shadows.inner &&
-                (() => {
-                  const a = svgLinearGradientAttrs(shadows.inner);
-                  return (
-                    <linearGradient
-                      id={innerId}
-                      gradientUnits="userSpaceOnUse"
-                      x1={a.x1}
-                      y1={a.y1}
-                      x2={a.x2}
-                      y2={a.y2}
-                    >
-                      {shadows.inner.stops.map((s, i) => (
-                        <stop
-                          key={i}
-                          offset={s.offset}
-                          stopColor="var(--curl-shadow-color, #000)"
-                          stopOpacity={s.opacity}
-                        />
-                      ))}
-                    </linearGradient>
-                  );
-                })()}
-            </defs>
-            <g transform={`translate(${W} 0)`}>
-              {shadows.drop && (
-                <g transform={svgLinearGradientAttrs(shadows.drop).transform}>
-                  <rect
-                    width={shadows.drop.width}
-                    height={shadows.drop.height}
-                    fill={`url(#${dropId})`}
-                  />
-                </g>
-              )}
-              {shadows.inner && (
-                <g transform={svgLinearGradientAttrs(shadows.inner).transform}>
-                  <rect
-                    width={shadows.inner.width}
-                    height={shadows.inner.height}
-                    fill={`url(#${innerId})`}
-                  />
-                </g>
-              )}
-            </g>
-          </svg>
-        </>
-      )}
+      {/* TODO(shadows): the curl shadows (crease + drop) are temporarily
+          disabled. The StPageFlip shadow port smeared a black band past the
+          sheet; they'll be reintroduced once the base curl geometry is
+          validated. `shadowLayer` stylesName + shadow.ts stay in place. */}
     </Box>
   );
 });

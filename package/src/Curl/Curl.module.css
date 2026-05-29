@@ -28,6 +28,9 @@
   user-select: none;
   -webkit-user-select: none;
   touch-action: pan-y;
+  /* Confine the lifting flap to the play-zone so a steep curl never spills
+     past the component bounds. */
+  overflow: hidden;
 }
 
 .restSheet {
