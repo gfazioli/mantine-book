@@ -491,7 +491,8 @@ export function getFlatPartPolygon(
   geo: FoldGeometry,
   corner: FlipCorner,
   pageWidth: number,
-  pageHeight: number
+  pageHeight: number,
+  direction: FlipDirection = 'forward'
 ): Point[] {
   const spineTop: Point = { x: 0, y: 0 };
   const spineBottom: Point = { x: 0, y: pageHeight };
@@ -499,33 +500,39 @@ export function getFlatPartPolygon(
   const farBottom: Point = { x: pageWidth, y: pageHeight };
   const full: Point[] = [spineTop, farTop, farBottom, spineBottom];
 
+  let pts: Point[];
   if (corner === 'top') {
     if (!geo.topIntersect) {
-      return full;
-    }
-    if (geo.sideIntersect) {
+      pts = full;
+    } else if (geo.sideIntersect) {
       // Fold crosses the top and right borders: flat area is everything to
       // the spine side, keeping the still-flat bottom-right corner.
-      return [spineTop, geo.topIntersect, geo.sideIntersect, farBottom, spineBottom];
-    }
-    if (geo.bottomIntersect) {
+      pts = [spineTop, geo.topIntersect, geo.sideIntersect, farBottom, spineBottom];
+    } else if (geo.bottomIntersect) {
       // Fold crosses top → bottom: flat area is the spine-side slab.
-      return [spineTop, geo.topIntersect, geo.bottomIntersect, spineBottom];
+      pts = [spineTop, geo.topIntersect, geo.bottomIntersect, spineBottom];
+    } else {
+      pts = full;
     }
-    return full;
+  } else {
+    // corner === 'bottom' — mirror of the above around the horizontal midline.
+    if (!geo.bottomIntersect) {
+      pts = full;
+    } else if (geo.sideIntersect) {
+      pts = [spineBottom, geo.bottomIntersect, geo.sideIntersect, farTop, spineTop];
+    } else if (geo.topIntersect) {
+      pts = [spineBottom, geo.bottomIntersect, geo.topIntersect, spineTop];
+    } else {
+      pts = full;
+    }
   }
 
-  // corner === 'bottom' — mirror of the above around the horizontal midline.
-  if (!geo.bottomIntersect) {
-    return full;
+  // For a BACK fold the resting sheet lies on the left with its hinge on the
+  // right, so the flat-part polygon (computed hinge-at-x=0) is mirrored.
+  if (direction === 'back') {
+    return pts.map((p) => ({ x: pageWidth - p.x, y: p.y }));
   }
-  if (geo.sideIntersect) {
-    return [spineBottom, geo.bottomIntersect, geo.sideIntersect, farTop, spineTop];
-  }
-  if (geo.topIntersect) {
-    return [spineBottom, geo.bottomIntersect, geo.topIntersect, spineTop];
-  }
-  return full;
+  return pts;
 }
 
 /** Euclidean distance between two points. */

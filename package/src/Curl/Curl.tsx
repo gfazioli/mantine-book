@@ -20,6 +20,7 @@ import {
   computeFold,
   convertToSpread,
   type FlipCorner,
+  type FlipDirection,
   type FoldGeometry,
   getFlatPartPolygon,
   getFlippingPageLocalPolygon,
@@ -240,25 +241,31 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   /* --- Fold state ----------------------------------------------- */
 
-  const [fold, setFold] = useState<FoldGeometry | null>(null);
-  // Resting state once a flip completes: the sheet lies flat on the left,
-  // showing the Back face. Forward-only in this phase.
-  const [flipped, setFlipped] = useState(false);
+  // Single combined state so a fold-clear and a flipped-toggle apply in ONE
+  // render — otherwise the in-between render (fold cleared, flipped not yet
+  // updated) flashes the resting Front for a frame.
+  const [view, setView] = useState<{ fold: FoldGeometry | null; flipped: boolean }>({
+    fold: null,
+    flipped: false,
+  });
+  const fold = view.fold;
+  const flipped = view.flipped;
+
   const flippedRef = useRef(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const cornerRef = useRef<FlipCorner>('top');
   const foldRef = useRef<FoldGeometry | null>(null);
   const animator = useFlipAnimator();
 
-  const setFlippedBoth = useCallback((v: boolean) => {
-    flippedRef.current = v;
-    setFlipped(v);
+  // Atomic setter: keeps refs and state in sync in a single update.
+  const setBoth = useCallback((g: FoldGeometry | null, f: boolean) => {
+    foldRef.current = g;
+    flippedRef.current = f;
+    setView({ fold: g, flipped: f });
   }, []);
 
-  const setFoldBoth = useCallback((g: FoldGeometry | null) => {
-    foldRef.current = g;
-    setFold(g);
-  }, []);
+  const setFlippedBoth = useCallback((v: boolean) => setBoth(foldRef.current, v), [setBoth]);
+  const setFoldBoth = useCallback((g: FoldGeometry | null) => setBoth(g, flippedRef.current), [setBoth]);
 
   const onFoldRef = useRef(onFold);
   onFoldRef.current = onFold;
@@ -286,9 +293,14 @@ export const Curl = factory<CurlFactory>((_props) => {
       const rect = rootRef.current?.getBoundingClientRect();
       const left = rect?.left ?? 0;
       const top = rect?.top ?? 0;
-      // Sheet-local origin is the sheet's own top-left, which sits at the
-      // play-zone's centre seam (x = W). Subtract W so cursor.x ∈ (…, W].
-      return { x: clientX - left - W, y: clientY - top };
+      const bx = clientX - left;
+      // The hinge is the centre seam (play-zone x = W). For a FORWARD fold the
+      // sheet is on the right (local x = bx - W); for a BACK fold it's on the
+      // left, mirrored about the hinge (local x = W - bx). Either way the
+      // active corner travels local-x W → 0 as it nears the hinge.
+      return flippedRef.current
+        ? { x: W - bx, y: clientY - top }
+        : { x: bx - W, y: clientY - top };
     },
     [W]
   );
@@ -301,7 +313,7 @@ export const Curl = factory<CurlFactory>((_props) => {
           pageWidth: W,
           pageHeight: H,
           corner: cornerRef.current,
-          direction: 'forward',
+          direction: flippedRef.current ? 'back' : 'forward',
         });
       } catch {
         return null;
@@ -315,13 +327,8 @@ export const Curl = factory<CurlFactory>((_props) => {
   const handleStart = useCallback(
     (local: Point) => {
       animator.stop();
-      // If the sheet is already flipped (showing B), a press resets it back
-      // to the resting Front so it can be flipped again (forward-only phase).
-      if (flippedRef.current) {
-        setFlippedBoth(false);
-        setFoldBoth(null);
-        return;
-      }
+      // Grab the free corner: forward grabs the right edge, back grabs the
+      // left edge — either way `local` is already in hinge-at-0 coordinates.
       cornerRef.current = local.y < H / 2 ? 'top' : 'bottom';
       const g = computeFor(local);
       if (g) {
@@ -329,7 +336,7 @@ export const Curl = factory<CurlFactory>((_props) => {
         onFoldRef.current?.({ progress: g.progress, corner: cornerRef.current, phase: 'move' });
       }
     },
-    [H, animator, computeFor, setFoldBoth, setFlippedBoth]
+    [H, animator, computeFor, setFoldBoth]
   );
 
   const handleMove = useCallback(
@@ -347,11 +354,12 @@ export const Curl = factory<CurlFactory>((_props) => {
     (summary: DragSummary) => {
       const corner = cornerRef.current;
       const current = foldRef.current;
+      const wasFlipped = flippedRef.current;
 
-      // A click (no real drag) just resets to rest.
+      // A click (no real drag) just settles back to the current rest state.
       if (summary.kind === 'click' || !current) {
         setFoldBoth(null);
-        onFlipRef.current?.({ flipped: false });
+        onFlipRef.current?.({ flipped: wasFlipped });
         return;
       }
 
@@ -379,20 +387,14 @@ export const Curl = factory<CurlFactory>((_props) => {
           }
         },
         onComplete: () => {
-          if (complete) {
-            // Settle into the flat "flipped" resting state: Back lying on
-            // the left half. Drop the transient fold frame.
-            setFoldBoth(null);
-            setFlippedBoth(true);
-            onFlipRef.current?.({ flipped: true });
-          } else {
-            setFoldBoth(null);
-            onFlipRef.current?.({ flipped: false });
-          }
+          // A completed fold toggles the resting side; otherwise snap back.
+          const nowFlipped = complete ? !wasFlipped : wasFlipped;
+          setBoth(null, nowFlipped);
+          onFlipRef.current?.({ flipped: nowFlipped });
         },
       });
     },
-    [H, W, threshold, flippingTime, animator, computeFor, setFoldBoth, setFlippedBoth]
+    [H, W, threshold, flippingTime, animator, computeFor, setFoldBoth, setBoth]
   );
 
   const drag = useDragController({
@@ -423,18 +425,26 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   const folding = fold !== null;
 
+  // Direction of the current fold / resting side. forward = A on the right
+  // curling to B; back = B on the left curling back to A.
+  const dir: FlipDirection = flipped ? 'back' : 'forward';
+  // The face lying flat at rest, and the one shown on the lifting flap.
+  const restFaceNode = flipped ? backNode : frontNode;
+  const liftFaceNode = flipped ? frontNode : backNode;
+  const restLeft = flipped ? 0 : W;
+
   let curlClip: string | null = null;
   let curlTransform: string | undefined;
   let flatClip: string | null = null;
 
   if (fold) {
-    const localPoly = getFlippingPageLocalPolygon(fold, cornerRef.current, 'forward');
+    const localPoly = getFlippingPageLocalPolygon(fold, cornerRef.current, dir);
     curlClip = pointsToCssPolygon(localPoly, 'px');
-    const globalPos = convertToSpread(fold.position, 'forward', W);
+    const globalPos = convertToSpread(fold.position, dir, W);
     curlTransform = `translate3d(${globalPos.x.toFixed(3)}px, ${globalPos.y.toFixed(3)}px, 0) rotate(${fold.angle.toFixed(5)}rad)`;
-    // Front layer keeps only the still-flat region; the lifted area is left
+    // Resting face keeps only the still-flat region; the lifted area is left
     // transparent (single sheet — nothing underneath).
-    flatClip = pointsToCssPolygon(getFlatPartPolygon(fold, cornerRef.current, W, H), 'px');
+    flatClip = pointsToCssPolygon(getFlatPartPolygon(fold, cornerRef.current, W, H, dir), 'px');
   }
 
   const curlVisible = folding && curlClip !== null;
@@ -449,27 +459,22 @@ export const Curl = factory<CurlFactory>((_props) => {
       {...dragHandlers}
       mod={[{ folding, flipped, disabled }, mod]}
     >
-      {/* Resting Front. Full when at rest; clipped to the flat region while
-          folding (the lifted area shows through to the background). Hidden
-          once flipped. */}
+      {/* Resting face (Front at rest, Back once flipped). Full when idle;
+          clipped to the still-flat region while folding so the lifted area
+          shows through to the background (single sheet — nothing under it). */}
       <div
         {...getStyles('restSheet', {
-          style: flipped
-            ? { display: 'none' }
-            : folding && flatClip
-              ? { clipPath: flatClip, WebkitClipPath: flatClip }
-              : undefined,
+          style:
+            folding && flatClip
+              ? { left: restLeft, clipPath: flatClip, WebkitClipPath: flatClip }
+              : { left: restLeft },
         })}
       >
-        {frontNode}
+        {restFaceNode}
       </div>
 
-      {/* Flipped resting state: Back lying flat on the left half. */}
-      {flipped && <div {...getStyles('restSheet', { style: { left: 0 } })}>{backNode}</div>}
-
-      {/* The lifting flap showing the Back face. Always mounted (hidden at
-          rest) so the Back content + its handlers persist and aren't
-          re-created on every fold. */}
+      {/* The lifting flap (the opposite face). Always mounted (hidden at rest)
+          so content + handlers persist and aren't re-created each fold. */}
       <div
         {...getStyles('curlSheet', {
           style: curlVisible
@@ -477,7 +482,7 @@ export const Curl = factory<CurlFactory>((_props) => {
             : { display: 'none' },
         })}
       >
-        {backNode}
+        {liftFaceNode}
       </div>
 
       {/* TODO(shadows): the curl shadows (crease + drop) are temporarily
