@@ -254,6 +254,10 @@ export const Curl = factory<CurlFactory>((_props) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const cornerRef = useRef<FlipCorner>('top');
   const foldRef = useRef<FoldGeometry | null>(null);
+  // Sheet-local point where the drag was grabbed. The fold tracks the
+  // movement DELTA from here (instead of teleporting the corner to the
+  // cursor), so you can grab anywhere on the sheet and it starts flat.
+  const grabRef = useRef<Point>({ x: 0, y: 0 });
   const animator = useFlipAnimator();
 
   // Atomic setter: keeps refs and state in sync in a single update.
@@ -327,30 +331,45 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   /* --- Drag wiring ---------------------------------------------- */
 
+  // The free corner sits at sheet-local (W, 0) for a top fold or (W, H) for a
+  // bottom fold; the fold starts there and the grabbed point contributes only
+  // its DELTA on BOTH axes. Grabbing anywhere starts the sheet flat (no
+  // teleport), and dragging toward the spine curls symmetrically for either
+  // corner (a bottom grab must raise `H - y`, so y must be corner-relative too).
+  const cursorFromGrab = useCallback(
+    (local: Point): Point => {
+      const cornerStartY = cornerRef.current === 'top' ? 0 : H;
+      return {
+        x: W + (local.x - grabRef.current.x),
+        y: cornerStartY + (local.y - grabRef.current.y),
+      };
+    },
+    [W, H]
+  );
+
   const handleStart = useCallback(
     (local: Point) => {
       animator.stop();
-      // Grab the free corner: forward grabs the right edge, back grabs the
-      // left edge — either way `local` is already in hinge-at-0 coordinates.
+      grabRef.current = local;
       cornerRef.current = local.y < H / 2 ? 'top' : 'bottom';
-      const g = computeFor(local);
+      const g = computeFor(cursorFromGrab(local));
       if (g) {
         setFoldBoth(g);
         onFoldRef.current?.({ progress: g.progress, corner: cornerRef.current, phase: 'move' });
       }
     },
-    [H, animator, computeFor, setFoldBoth]
+    [H, animator, computeFor, cursorFromGrab, setFoldBoth]
   );
 
   const handleMove = useCallback(
     (local: Point) => {
-      const g = computeFor(local);
+      const g = computeFor(cursorFromGrab(local));
       if (g) {
         setFoldBoth(g);
         onFoldRef.current?.({ progress: g.progress, corner: cornerRef.current, phase: 'move' });
       }
     },
-    [computeFor, setFoldBoth]
+    [computeFor, cursorFromGrab, setFoldBoth]
   );
 
   const handleRelease = useCallback(
@@ -498,7 +517,12 @@ export const Curl = factory<CurlFactory>((_props) => {
               : { display: 'none' },
           })}
         >
-          {liftFaceNode}
+          <div
+            className={cornerRef.current === 'bottom' ? classes.curlSheetBottom : undefined}
+            style={{ position: 'absolute', inset: 0 }}
+          >
+            {liftFaceNode}
+          </div>
         </div>
       </div>
 

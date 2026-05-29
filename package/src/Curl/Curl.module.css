@@ -74,12 +74,19 @@
   left: 0;
   width: var(--curl-page-width);
   height: var(--curl-page-height);
-  overflow: hidden;
+  /* No overflow:hidden — the clip-path confines the flap, and a bottom-corner
+     fold needs content above the box (y < 0) to remain visible. */
   box-sizing: border-box;
   background: var(--curl-page-background);
   transform-origin: 0 0;
   /* transform + clip-path applied inline per frame */
   z-index: 5;
+}
+
+/* Bottom-corner fold: the geometry places the flap rect at y ∈ [-H, 0], so
+   the flap content is lifted by one page height to meet the clip. */
+.curlSheetBottom {
+  transform: translateY(-100%);
 }
 
 .shadowLayer {
