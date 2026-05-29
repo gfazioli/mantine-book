@@ -12,7 +12,7 @@ export default function HomePage() {
       <PageHeader data={PACKAGE_DATA} />
       <DocsTabs
         docgen={docgen}
-        componentsProps={['Book']}
+        componentsProps={['Book', 'BookPage']}
         componentsStyles={['Book']}
         componentPrefix="Book"
         stylesApiData={STYLES_API_DATA}

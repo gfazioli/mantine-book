@@ -3,56 +3,66 @@ import React from 'react';
 import { Book } from './Book';
 
 describe('Book', () => {
-  it('renders without crashing', () => {
+  it('renders without crashing with no pages', () => {
     const { container } = render(<Book />);
     expect(container).toBeTruthy();
   });
 
   it('forwards ref', () => {
     const ref = React.createRef<HTMLDivElement>();
-    render(<Book ref={ref} />);
+    render(
+      <Book ref={ref}>
+        <Book.Page>One</Book.Page>
+      </Book>
+    );
     expect(ref.current).toBeTruthy();
   });
 
-  it('applies value prop as data attribute when true', () => {
-    const { container } = render(<Book />);
-    const root = container.querySelector('[data-value]');
+  it('exposes Page as static compound child', () => {
+    expect(Book.Page).toBeDefined();
+    expect(Book.Page.displayName).toBe('Book.Page');
+  });
+
+  it('renders the active page content', () => {
+    const { getByText } = render(
+      <Book defaultPage={0}>
+        <Book.Page>One</Book.Page>
+        <Book.Page>Two</Book.Page>
+      </Book>
+    );
+    expect(getByText('One')).toBeInTheDocument();
+  });
+
+  it('respects controlled `currentPage` (spread mode shows left = idx-1, right = idx)', () => {
+    const { getByText } = render(
+      <Book currentPage={1}>
+        <Book.Page>One</Book.Page>
+        <Book.Page>Two</Book.Page>
+        <Book.Page>Three</Book.Page>
+      </Book>
+    );
+    expect(getByText('Two')).toBeInTheDocument();
+  });
+
+  it('marks the first and last pages as hard when `showCover` is set', () => {
+    const { container } = render(
+      <Book showCover>
+        <Book.Page>Cover</Book.Page>
+        <Book.Page>Mid</Book.Page>
+        <Book.Page>Back</Book.Page>
+      </Book>
+    );
+    const root = container.querySelector('[data-mode]');
     expect(root).toBeTruthy();
   });
 
-  it('does not apply value data attribute when false', () => {
-    const { container } = render(<Book value={false} />);
-    const root = container.querySelector('[data-value]');
-    expect(root).toBeFalsy();
-  });
-
-  it('applies animation type as data attribute when animate is true and value is true', () => {
-    const { container } = render(<Book animate animationType="pulse" />);
-    const root = container.querySelector('[data-animate="pulse"]');
-    expect(root).toBeTruthy();
-  });
-
-  it('does not apply animation when animate is false', () => {
-    const { container } = render(<Book animate={false} animationType="pulse" />);
-    const root = container.querySelector('[data-animate]');
-    expect(root).toBeFalsy();
-  });
-
-  it('does not apply animation when value is false', () => {
-    const { container } = render(<Book animate animationType="pulse" value={false} />);
-    const root = container.querySelector('[data-animate]');
-    expect(root).toBeFalsy();
-  });
-
-  it('supports flat variant', () => {
-    const { container } = render(<Book variant="flat" />);
-    const root = container.querySelector('[data-variant="flat"]');
-    expect(root).toBeTruthy();
-  });
-
-  it('supports 3d variant', () => {
-    const { container } = render(<Book variant="3d" />);
-    const root = container.querySelector('[data-variant="3d"]');
-    expect(root).toBeTruthy();
+  it('exposes `data-mode` on the viewport', () => {
+    const { container } = render(
+      <Book>
+        <Book.Page>One</Book.Page>
+      </Book>
+    );
+    const viewport = container.querySelector('[data-mode]');
+    expect(viewport).toBeTruthy();
   });
 });

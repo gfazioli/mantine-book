@@ -141,9 +141,10 @@ describe('pointsToCssPolygon', () => {
     expect(css).toMatch(/0\.000% 0\.000%/);
   });
 
-  it('returns a degenerate polygon for fewer than 3 points (renderer safe)', () => {
-    expect(pointsToCssPolygon([])).toBe('polygon(0 0, 0 0, 0 0)');
-    expect(pointsToCssPolygon([{ x: 1, y: 1 }])).toBe('polygon(0 0, 0 0, 0 0)');
+  it('returns null for fewer than 3 points (renderer should skip clip-path)', () => {
+    expect(pointsToCssPolygon([])).toBeNull();
+    expect(pointsToCssPolygon([{ x: 1, y: 1 }])).toBeNull();
+    expect(pointsToCssPolygon([{ x: 1, y: 1 }, { x: 2, y: 2 }])).toBeNull();
   });
 });
 

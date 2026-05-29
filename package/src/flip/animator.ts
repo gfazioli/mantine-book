@@ -10,7 +10,7 @@
  * programmatic `flipNext()` call.
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 /** Easing function signature — input in `[0, 1]`, output in `[0, 1]`. */
 export type Easing = (t: number) => number;
@@ -127,5 +127,10 @@ export function useFlipAnimator(): FlipAnimator {
 
   const isActive = useCallback(() => activeRef.current, []);
 
-  return { start, stop: cancel, isActive };
+  // Memoise so consumers can safely use the returned object as a
+  // `useEffect` / `useCallback` dependency without re-firing every render.
+  return useMemo(
+    () => ({ start, stop: cancel, isActive }),
+    [start, cancel, isActive]
+  );
 }

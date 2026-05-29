@@ -3,42 +3,49 @@ import type { StylesApiData } from '../components/styles-api.types';
 
 export const BookStylesApi: StylesApiData<BookFactory> = {
   selectors: {
-    root: 'Root element',
-    book: 'BOOK element',
-    label: 'Label element',
-    glow: 'Outer glow effect element',
-    light: 'Inner light reflection element',
+    root: 'Root element with intrinsic width/height and 3D perspective',
+    viewport: 'Inner box hosting both page sides; gesture target for drag/click',
+    side: 'One half of the spread (left or right)',
+    page: 'A single full-size page surface',
+    pageInner: 'Padded interior of a page; consumer content lives here',
+    flippingPage: 'The curling page rendered during a flip',
+    shadowsLayer: 'Drop + inner curl shadow strips (rendered per frame)',
+    cover: 'Modifier applied to hard cover pages',
   },
 
   vars: {
     root: {
-      '--book-size': 'Controls BOOK width and height',
-      '--book-radius': 'Controls border radius',
-      '--book-color': 'Controls BOOK base color',
-      '--book-intensity': 'Controls brightness intensity (0-1)',
-      '--book-animation-duration': 'Controls animation duration',
-      '--book-glow-size': 'Controls outer glow size',
-      '--book-justify-content': 'Controls label and BOOK alignment',
+      '--book-width': 'Total book width (covers spread + spine) in CSS px',
+      '--book-height': 'Book height in CSS px',
+      '--book-page-width': 'Resolved width of a single page',
+      '--book-page-height': 'Resolved height of a single page',
+      '--book-page-background': 'Background color of every page surface',
+      '--book-shadow-color': 'Color used for the curl shadows',
     },
   },
 
   modifiers: [
     {
-      modifier: 'data-value',
+      modifier: 'data-mode',
       selector: 'root',
-      condition: '`value` prop is true',
+      value: 'single | spread',
+      condition: 'Auto-detected from container width vs `singlePageBreakpoint`',
     },
     {
-      modifier: 'data-animate',
+      modifier: 'data-flipping',
       selector: 'root',
-      value: 'pulse | flash | breathe | blink | glow',
-      condition: '`animate` prop is true and `value` is true',
+      condition: 'True while a page is mid-flip (auto-animation or drag)',
     },
     {
-      modifier: 'data-variant',
-      selector: 'root',
-      value: 'flat | 3d',
-      condition: 'Based on `variant` prop',
+      modifier: 'data-hard',
+      selector: 'page',
+      condition: '`hard` prop on `<Book.Page>` (or auto via `showCover`)',
+    },
+    {
+      modifier: 'data-side',
+      selector: 'side',
+      value: 'left | right',
+      condition: 'Which half of the spread this side renders',
     },
   ],
 };

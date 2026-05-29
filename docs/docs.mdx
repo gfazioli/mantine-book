@@ -21,25 +21,16 @@ import '@gfazioli/mantine-book/styles.layer.css';
 
 `Book` renders a realistic page-turn book with corner-driven curl, drag interaction, and click-to-flip. Pages are declared as `<Book.Page>` children — any JSX content goes inside.
 
-```tsx
-import { Book } from '@gfazioli/mantine-book';
+<Demo data={demos.usage} />
 
-function Demo() {
-  return (
-    <Book width={600} height={400} showCover>
-      <Book.Page hard>Cover</Book.Page>
-      <Book.Page>Page 1</Book.Page>
-      <Book.Page>Page 2</Book.Page>
-      <Book.Page hard>Back cover</Book.Page>
-    </Book>
-  );
-}
-```
+## Configurator
+
+Tweak the layout, the auto-flip duration, and the shadow intensity. Click the right edge of the spread to flip forward, the left edge to flip back.
 
 <Demo data={demos.configurator} />
 
 ## Controlled
 
-Pass `currentPage` and listen to `onPageChange` to drive the book from external state (e.g. a button bar, a deep link, an analytics handler).
+Pass `currentPage` and listen to `onPageChange` to drive the book from external state (e.g. a button bar, a deep link, an analytics handler). Each external change animates with the same curl as a click.
 
 <Demo data={demos.controlled} />

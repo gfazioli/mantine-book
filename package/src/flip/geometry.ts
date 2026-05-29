@@ -484,16 +484,140 @@ export function distance(a: Point, b: Point): number {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+/* ------------------------------------------------------------------ */
+/*  Shadow helpers — small functions ported from StPageFlip            */
+/*  (`FlipCalculation.getShadowStartPoint / getShadowAngle / ...`)     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Rotates a point around `pivot` by `angle` radians using the same matrix
+ * convention as `Helper.GetRotatedPoint`: positive angle rotates the point
+ * clockwise in screen space (CSS y-axis flipped).
+ */
+export function rotatePointAround(point: Point, pivot: Point, angle: number): Point {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return {
+    x: point.x * cos + point.y * sin + pivot.x,
+    y: point.y * cos - point.x * sin + pivot.y,
+  };
+}
+
+/** Angle (radians) between two line segments. Direct port of `GetAngleBetweenTwoLine`. */
+export function angleBetweenSegments(a: Segment, b: Segment): number {
+  const A1 = a[0].y - a[1].y;
+  const A2 = b[0].y - b[1].y;
+  const B1 = a[1].x - a[0].x;
+  const B2 = b[1].x - b[0].x;
+  return Math.acos(
+    (A1 * A2 + B1 * B2) / (Math.sqrt(A1 * A1 + B1 * B1) * Math.sqrt(A2 * A2 + B2 * B2))
+  );
+}
+
+/**
+ * Starting point of the curl shadow strip — the topIntersect for top-corner
+ * flips, or the sideIntersect when available for bottom-corner flips.
+ */
+export function getShadowStartPoint(geo: FoldGeometry, corner: FlipCorner): Point | null {
+  if (corner === 'top') {
+    return geo.topIntersect;
+  }
+  return geo.sideIntersect ?? geo.topIntersect;
+}
+
+/**
+ * The two-point segment representing the fold line (where the page is
+ * creased). Direction-agnostic; used as input to `getShadowAngle`.
+ */
+export function getFoldLineSegment(geo: FoldGeometry, corner: FlipCorner): Segment | null {
+  const first = getShadowStartPoint(geo, corner);
+  if (!first) return null;
+  const second =
+    first !== geo.sideIntersect && geo.sideIntersect !== null
+      ? geo.sideIntersect
+      : geo.bottomIntersect;
+  if (!second) return null;
+  return [first, second];
+}
+
+/**
+ * Rotation angle (radians) to apply to the shadow strip so it sits along
+ * the fold. The result is already adjusted for direction.
+ */
+export function getShadowAngle(
+  geo: FoldGeometry,
+  corner: FlipCorner,
+  direction: FlipDirection,
+  pageWidth: number
+): number {
+  const seg = getFoldLineSegment(geo, corner);
+  if (!seg) return 0;
+  const a = angleBetweenSegments(seg, [
+    { x: 0, y: 0 },
+    { x: pageWidth, y: 0 },
+  ]);
+  return direction === 'forward' ? a : Math.PI - a;
+}
+
+/**
+ * Converts a point in the flipping page's local frame (origin = the page's
+ * own top-left) into the spread's frame (origin = top-left of the spread).
+ *
+ * - FORWARD flip happens on the right side: localX is added to pageWidth.
+ * - BACK flip happens on the left side mirrored along the spine:
+ *   localX is reflected through pageWidth.
+ */
+export function convertToSpread(
+  localPos: Point,
+  direction: FlipDirection,
+  pageWidth: number
+): Point {
+  return {
+    x: direction === 'forward' ? localPos.x + pageWidth : pageWidth - localPos.x,
+    y: localPos.y,
+  };
+}
+
+/**
+ * Builds the polygon points consumed by the CSS `clip-path` of the
+ * **flipping page** element, in the element's pre-transform coordinate
+ * system. Mirrors `HTMLPage.drawSoft` from StPageFlip.
+ *
+ *  - For `forward`: `g = p - position`
+ *  - For `back`:    `g = (-p.x + position.x, p.y - position.y)` (mirror x)
+ *  - Then rotate every `g` around (0, 0) by `angle` so that the subsequent
+ *    CSS `transform: translate(position) rotate(angle)` lands each point at
+ *    its original spread-space `p`.
+ */
+export function getFlippingPageLocalPolygon(
+  geo: FoldGeometry,
+  corner: FlipCorner,
+  direction: FlipDirection
+): Point[] {
+  const points = getFlippingClipPolygon(geo, corner);
+  return points.map((p) => {
+    const local =
+      direction === 'back'
+        ? { x: -p.x + geo.position.x, y: p.y - geo.position.y }
+        : { x: p.x - geo.position.x, y: p.y - geo.position.y };
+    return rotatePointAround(local, { x: 0, y: 0 }, geo.angle);
+  });
+}
+
 /**
  * Convenience formatter — turns a list of points into a CSS `polygon(...)`
  * value with the given unit (default `px`). Designed for use as the
  * `clip-path` of the flipping/bottom pages.
+ *
+ * Returns `null` when there are fewer than 3 vertices (a degenerate
+ * polygon). The consumer should fall back to **no clip-path** in that
+ * case, which keeps the element fully visible — appropriate for the
+ * "bottom" page when the curl is mid-drag and intersection geometry
+ * collapses to a single border crossing.
  */
-export function pointsToCssPolygon(points: Point[], unit: 'px' | '%' = 'px'): string {
+export function pointsToCssPolygon(points: Point[], unit: 'px' | '%' = 'px'): string | null {
   if (points.length < 3) {
-    // A polygon needs at least 3 vertices; return an empty clip-path
-    // hint that hides the element rather than throwing.
-    return 'polygon(0 0, 0 0, 0 0)';
+    return null;
   }
   const parts = points.map((p) => `${p.x.toFixed(3)}${unit} ${p.y.toFixed(3)}${unit}`).join(', ');
   return `polygon(${parts})`;

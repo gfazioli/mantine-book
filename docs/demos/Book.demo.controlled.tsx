@@ -1,28 +1,39 @@
 import { Book } from '@gfazioli/mantine-book';
-import { Button, Group, Stack } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { Button, Group, Stack, Text } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
+import { useState } from 'react';
 
 const code = `
 import { useState } from 'react';
-import { Button, Group, Stack } from '@mantine/core';
+import { Button, Group, Stack, Text } from '@mantine/core';
 import { Book } from '@gfazioli/mantine-book';
 
 function Demo() {
-  const [value, { open, close, toggle }] = useDisclosure(false);
+  const [page, setPage] = useState(0);
 
   return (
     <Stack align="center">
-      <Book value={value} size="xl" />
+      <Book
+        width={600}
+        height={380}
+        currentPage={page}
+        onPageChange={setPage}
+        showCover
+      >
+        <Book.Page hard>Cover</Book.Page>
+        <Book.Page>Page 1</Book.Page>
+        <Book.Page>Page 2</Book.Page>
+        <Book.Page>Page 3</Book.Page>
+        <Book.Page>Page 4</Book.Page>
+        <Book.Page hard>Back cover</Book.Page>
+      </Book>
       <Group>
-        <Button onClick={open} variant="light" color="green">
-          Turn On
+        <Button onClick={() => setPage((p) => Math.max(0, p - 2))} variant="light">
+          Previous
         </Button>
-        <Button onClick={close} variant="light" color="red">
-          Turn Off
-        </Button>
-        <Button onClick={toggle} variant="light">
-          Toggle
+        <Text size="sm">Page {page}</Text>
+        <Button onClick={() => setPage((p) => Math.min(5, p + 2))} variant="light">
+          Next
         </Button>
       </Group>
     </Stack>
@@ -31,20 +42,25 @@ function Demo() {
 `;
 
 function Demo() {
-  const [value, { open, close, toggle }] = useDisclosure(false);
+  const [page, setPage] = useState(0);
 
   return (
     <Stack align="center">
-      <Book value={value} size="lg" variant="3d" />
+      <Book width={600} height={380} currentPage={page} onPageChange={setPage} showCover>
+        <Book.Page hard>Cover</Book.Page>
+        <Book.Page>Page 1</Book.Page>
+        <Book.Page>Page 2</Book.Page>
+        <Book.Page>Page 3</Book.Page>
+        <Book.Page>Page 4</Book.Page>
+        <Book.Page hard>Back cover</Book.Page>
+      </Book>
       <Group>
-        <Button onClick={open} variant="light" color="green">
-          Turn On
+        <Button onClick={() => setPage((p) => Math.max(0, p - 2))} variant="light">
+          Previous
         </Button>
-        <Button onClick={close} variant="light" color="red">
-          Turn Off
-        </Button>
-        <Button onClick={toggle} variant="light">
-          Toggle
+        <Text size="sm">Page {page}</Text>
+        <Button onClick={() => setPage((p) => Math.min(5, p + 2))} variant="light">
+          Next
         </Button>
       </Group>
     </Stack>
