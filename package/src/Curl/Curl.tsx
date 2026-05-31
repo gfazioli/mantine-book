@@ -449,7 +449,10 @@ export const Curl = factory<CurlFactory>((_props) => {
             : { display: 'none' },
         })}
       >
-        {liftFaceNode}
+        {/* Pre-mirror the flap content so the det−1 reflection matrix composes
+            to a PROPER rotation: the back face reads correctly (just rotated
+            with the flap) instead of appearing mirror-reversed. */}
+        <div style={{ width: '100%', height: '100%', transform: 'scaleX(-1)' }}>{liftFaceNode}</div>
       </div>
 
       {/* TODO(shadows): the crease + drop shadows are temporarily disabled;
