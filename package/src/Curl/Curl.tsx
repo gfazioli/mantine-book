@@ -12,12 +12,13 @@ import {
   useProps,
   useStyles,
 } from '@mantine/core';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useId, useMemo, useRef, useState } from 'react';
 import { CurlFace, type CurlFaceAlign, type CurlFaceProps } from '../CurlFace/CurlFace';
 import { useFlipAnimator } from '../flip/animator';
 import { type DragSummary, useDragController } from '../flip/drag';
 import {
   clampReflectionTarget,
+  computeFoldShadow,
   computeReflectionFold,
   type Point,
   pointsToCssPolygon,
@@ -30,7 +31,7 @@ import classes from './Curl.module.css';
 /*  Public API                                                         */
 /* ------------------------------------------------------------------ */
 
-export type CurlStylesNames = 'root' | 'restSheet' | 'curlSheet' | 'face';
+export type CurlStylesNames = 'root' | 'restSheet' | 'curlSheet' | 'shadowLayer' | 'face';
 
 export type CurlCssVariables = {
   root:
@@ -207,6 +208,11 @@ export const Curl = factory<CurlFactory>((_props) => {
   const W = width ?? 300;
   const H = height ?? 600;
   const threshold = flipThreshold ?? 50;
+
+  // Unique SVG gradient id per instance (multiple Curls / a future Book must
+  // not share `url(#id)` defs). useId() contains ':' which is invalid in a CSS
+  // url() reference, so strip it.
+  const shadowGradientId = `curl-shadow-${useId().replace(/:/g, '')}`;
 
   // Unique gradient ids per instance (multiple Curls / a future Book must
   // not share SVG defs ids).
@@ -427,6 +433,24 @@ export const Curl = factory<CurlFactory>((_props) => {
     : undefined;
   const curlVisible = folding && flapClip !== null;
 
+  /* --- Shadows -------------------------------------------------- */
+
+  // Two contributions, both derived from the crease (creaseMid + creaseDir):
+  //  • shadingPolygon — the reflected flap, painted with a gradient that is dark
+  //    at the crease and fades to nothing at the free edge (the back face reads
+  //    darkest where it curves away). Drawn in an SVG overlay (z-index above the
+  //    flap) spanning the FULL play-zone, so page coords map as playzoneX = x+W.
+  //  • cast drop-shadow — a soft halo around the lifted flap (filter on curlSheet).
+  const shadowOp = shadowOpacity ?? 0;
+  const shadow = fold && shadowOp > 0 ? computeFoldShadow(fold, W) : null;
+  const shadowPoints = shadow
+    ? shadow.flapPolygon.map((p) => `${(p.x + W).toFixed(2)},${p.y.toFixed(2)}`).join(' ')
+    : '';
+  const castShadow = shadow
+    ? `drop-shadow(0 1px ${(5 + 15 * shadow.strength).toFixed(1)}px ` +
+      `color-mix(in srgb, var(--curl-shadow-color) ${(shadowOp * shadow.strength * 55).toFixed(1)}%, transparent))`
+    : undefined;
+
   /* --- Render --------------------------------------------------- */
 
   return (
@@ -464,6 +488,7 @@ export const Curl = factory<CurlFactory>((_props) => {
                 transform: flapMatrix,
                 clipPath: flapClip!,
                 WebkitClipPath: flapClip!,
+                filter: castShadow,
               }
             : { display: 'none' },
         })}
@@ -474,8 +499,32 @@ export const Curl = factory<CurlFactory>((_props) => {
         <div style={{ width: '100%', height: '100%', transform: 'scaleX(-1)' }}>{liftFaceNode}</div>
       </div>
 
-      {/* TODO(shadows): the crease + drop shadows are temporarily disabled;
-          they'll be reintroduced once the base curl geometry is validated. */}
+      {/* Curl shading: a gradient over the reflected flap (dark at the crease →
+          transparent at the free edge), painted in an SVG overlay that spans the
+          whole play-zone (so page coords map as x + W). The cast halo is the
+          curlSheet's drop-shadow filter above. */}
+      {shadow && curlVisible && shadowPoints && (
+        <svg {...getStyles('shadowLayer')} width={W * 2} height={H} aria-hidden="true">
+          <defs>
+            <linearGradient
+              id={shadowGradientId}
+              gradientUnits="userSpaceOnUse"
+              x1={shadow.gradient.x1 + W}
+              y1={shadow.gradient.y1}
+              x2={shadow.gradient.x2 + W}
+              y2={shadow.gradient.y2}
+            >
+              <stop
+                offset="0"
+                stopColor="var(--curl-shadow-color)"
+                stopOpacity={shadowOp * shadow.strength}
+              />
+              <stop offset="1" stopColor="var(--curl-shadow-color)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <polygon points={shadowPoints} fill={`url(#${shadowGradientId})`} />
+        </svg>
+      )}
     </Box>
   );
 });

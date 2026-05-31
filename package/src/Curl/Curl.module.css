@@ -13,6 +13,8 @@
  *   .root        play-zone (2W × H), perspective + pointer surface
  *   .restSheet   Front face, flat, sitting in the right half
  *   .curlSheet   the lifting flap that reveals the Back face
+ *   .shadowLayer SVG overlay with the curl shading gradient (drop halo is a
+ *                filter on .curlSheet)
  *   .face        content wrapper inside any face (sizing / align / clipping)
  */
 
@@ -56,6 +58,15 @@
   transform-origin: 0 0;
   /* transform + clip-path applied inline per frame */
   z-index: 5;
+}
+
+.shadowLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 8;
 }
 
 .face {

@@ -57,9 +57,10 @@ Rollup → dual ESM/CJS with `'use client'` banner. CSS modules hashed with `has
 - **Release**: settles via `useFlipAnimator` — `shouldCompleteFold` decides complete (sweep to the opposite edge, toggling the resting side) vs snap-back (return to the anchor edge), from the threshold or a side-aware swipe.
 - **Animation model**: no perpetual `requestAnimationFrame` — the sheet is quiescent at rest. The rAF loop runs only during a drag or the release settle.
 - **Pointer events**: single PointerEvents handler. `touch-action: pan-y` keeps vertical scroll working; `mobileScrollSupport` (default true) waits for a horizontal-biased gesture before claiming the touch.
-- **Styles API names**: `root`, `restSheet`, `curlSheet`, `face`. CSS vars on `root`: `--curl-page-width`, `--curl-page-height`, `--curl-page-background` (plus `--curl-reveal-background` / `--curl-shadow-color`, reserved for the forthcoming reveal + shadow layers).
+- **Shadows**: derived from the crease (`computeFoldShadow`). The `shadowLayer` SVG overlay paints the reflected flap with a gradient anchored at the crease (dark where the page curves away → transparent at the free edge); the cast halo is a `drop-shadow` filter on `curlSheet`. Both scale with `shadowOpacity` and a `sin(progress·π)` strength curve (0 at rest, peak mid-fold, 0 at a full turn).
+- **Styles API names**: `root`, `restSheet`, `curlSheet`, `shadowLayer`, `face`. CSS vars on `root`: `--curl-page-width`, `--curl-page-height`, `--curl-page-background`, `--curl-shadow-color` (plus `--curl-reveal-background`, reserved for the forthcoming reveal layer).
 
-> **Not yet implemented**: the soft rounded curl edge + drop/crease shadows (the `shadowColor` / `shadowOpacity` / `revealBackground` props and the `--curl-shadow-color` / `--curl-reveal-background` vars are the theming surface for that upcoming feature, re-derived from `ReflectionFold.creaseMid` / `creaseDir`), and the `Book` stack.
+> **Not yet implemented**: a true curved soft edge (the current edge is a sharp clip + a crease gradient, not a per-vertex curve — that needs WebGL, see `RESEARCH-page-curl.md`), the reveal layer (`revealBackground` / `--curl-reveal-background` / a `bottomFace`), and the `Book` stack.
 
 ## Testing
 
