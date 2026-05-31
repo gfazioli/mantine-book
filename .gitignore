@@ -150,6 +150,7 @@ docs/docgen.json
 
 CHANGELOG.md
 POST.md
+RESEARCH-page-curl.md
 
 # Claude Code (local settings and memory are personal, settings.json is shared)
 .claude/settings.local.json
