@@ -12,9 +12,7 @@
  * Selectors:
  *   .root        play-zone (2W × H), perspective + pointer surface
  *   .restSheet   Front face, flat, sitting in the right half
- *   .bottomFace  area uncovered by the curl (transparent for a lone sheet)
  *   .curlSheet   the lifting flap that reveals the Back face
- *   .shadowLayer SVG overlay for drop + inner shadows
  *   .face        content wrapper inside any face (sizing / align / clipping)
  */
 
@@ -33,14 +31,6 @@
   overflow: visible;
 }
 
-.mirror {
-  position: absolute;
-  inset: 0;
-  /* Centre seam of the play-zone (x = page width). scaleX(-1) is applied
-     inline for the back direction. */
-  transform-origin: 50% 50%;
-}
-
 .restSheet {
   position: absolute;
   top: 0;
@@ -51,21 +41,6 @@
   box-sizing: border-box;
   background: var(--curl-page-background);
   z-index: 1;
-}
-
-.bottomFace {
-  position: absolute;
-  top: 0;
-  /* left + clip-path applied inline per frame */
-  width: var(--curl-page-width);
-  height: var(--curl-page-height);
-  overflow: hidden;
-  box-sizing: border-box;
-  /* Opaque by default (defaults to the page background) so it covers the
-     resting Front where the sheet has lifted away — like the bare surface
-     under a lifted corner. A future Book points this at the page beneath. */
-  background: var(--curl-reveal-background, var(--curl-page-background));
-  z-index: 2;
 }
 
 .curlSheet {
@@ -81,16 +56,6 @@
   transform-origin: 0 0;
   /* transform + clip-path applied inline per frame */
   z-index: 5;
-}
-
-.shadowLayer {
-  position: absolute;
-  inset: 0;
-  width: calc(var(--curl-page-width) * 2);
-  height: var(--curl-page-height);
-  pointer-events: none;
-  overflow: visible;
-  z-index: 10;
 }
 
 .face {

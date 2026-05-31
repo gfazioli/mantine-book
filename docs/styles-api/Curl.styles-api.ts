@@ -5,9 +5,7 @@ export const CurlStylesApi: StylesApiData<CurlFactory> = {
   selectors: {
     root: 'Play-zone (twice the sheet width) with 3D perspective; gesture target for the drag',
     restSheet: 'The Front face, flat, resting in the right half',
-    bottomFace: 'The area uncovered by the lifted flap (opaque, defaults to the page background)',
     curlSheet: 'The lifting flap that reveals the Back face (clipped + rotated per frame)',
-    shadowLayer: 'SVG overlay carrying the drop + inner curl shadows',
     face: 'Content wrapper inside a face (sizing, alignment, overflow clipping)',
   },
 

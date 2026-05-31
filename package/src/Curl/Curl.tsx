@@ -30,13 +30,7 @@ import classes from './Curl.module.css';
 /*  Public API                                                         */
 /* ------------------------------------------------------------------ */
 
-export type CurlStylesNames =
-  | 'root'
-  | 'restSheet'
-  | 'bottomFace'
-  | 'curlSheet'
-  | 'shadowLayer'
-  | 'face';
+export type CurlStylesNames = 'root' | 'restSheet' | 'curlSheet' | 'face';
 
 export type CurlCssVariables = {
   root:
@@ -118,7 +112,7 @@ const defaultProps: Partial<CurlProps> = {
   pageBackground: 'white',
   disabled: false,
   flippingTime: 600,
-  flipThreshold: 40,
+  flipThreshold: 50,
   swipeDistance: 30,
   swipeTimeThreshold: 250,
   mobileScrollSupport: true,
