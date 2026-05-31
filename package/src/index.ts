@@ -10,4 +10,4 @@ export type {
 export type { CurlFaceAlign, CurlFaceProps } from './CurlFace/CurlFace';
 
 // Pure flip math — exported for advanced consumers / a future Book.
-export type { FlipCorner, FlipDirection, FoldGeometry, Point } from './flip/geometry';
+export type { Point, ReflectionFold } from './flip/geometry';
