@@ -6,6 +6,8 @@ export const CurlStylesApi: StylesApiData<CurlFactory> = {
     root: 'Play-zone (twice the sheet width) with 3D perspective; gesture target for the drag',
     restSheet: 'The Front face, flat, resting in the right half',
     curlSheet: 'The lifting flap that reveals the Back face (clipped + rotated per frame)',
+    shadowLayer:
+      'SVG overlay with the curl shading gradient (the cast halo is a filter on curlSheet)',
     face: 'Content wrapper inside a face (sizing, alignment, overflow clipping)',
   },
 

@@ -197,6 +197,50 @@ export function shouldCompleteFold(
   return progress >= threshold || swipedTowardSpine;
 }
 
+export interface FoldShadow {
+  /** The lifted flap at its REFLECTED (visible) position, in page coords. */
+  flapPolygon: Point[];
+  /** Linear-gradient line (page coords): dark at the crease → transparent into
+   *  the flap. Use as SVG `userSpaceOnUse` x1,y1 → x2,y2. */
+  gradient: { x1: number; y1: number; x2: number; y2: number };
+  /** 0–1 shadow strength: 0 at rest, peaks mid-fold, 0 at a full turn. */
+  strength: number;
+}
+
+/**
+ * Derive the curl shadow from a {@link ReflectionFold}. The lifted flap reads
+ * darkest where it curves away (at the crease) and lightest at its free edge,
+ * so the gradient runs along the crease normal (the drag direction) anchored at
+ * the crease midpoint. The polygon is the flap REFLECTED across the crease —
+ * i.e. where the back face is actually drawn — so the shading overlays it.
+ */
+export function computeFoldShadow(fold: ReflectionFold, _pageWidth: number): FoldShadow {
+  const [a, b, c, d, e, f] = fold.matrix;
+  const reflect = (p: Point): Point => ({ x: a * p.x + c * p.y + e, y: b * p.x + d * p.y + f });
+  const flapPolygon = fold.flap.map(reflect);
+
+  // Crease normal = the drag direction (⟂ to creaseDir). The reflected flap
+  // lies on the +dragDir side of the crease, so the gradient extends that way.
+  const dragDir: Point = { x: fold.creaseDir.y, y: -fold.creaseDir.x };
+  let depth = 1;
+  for (const p of flapPolygon) {
+    const proj = dragDir.x * (p.x - fold.creaseMid.x) + dragDir.y * (p.y - fold.creaseMid.y);
+    if (proj > depth) {
+      depth = proj;
+    }
+  }
+  const gradient = {
+    x1: fold.creaseMid.x,
+    y1: fold.creaseMid.y,
+    x2: fold.creaseMid.x + dragDir.x * depth,
+    y2: fold.creaseMid.y + dragDir.y * depth,
+  };
+
+  const t = Math.max(0, Math.min(1, fold.progress / 100));
+  const strength = Math.sin(t * Math.PI);
+  return { flapPolygon, gradient, strength };
+}
+
 /**
  * Convenience formatter — turns a list of points into a CSS `polygon(...)`
  * value with the given unit (default `px`), for use as a `clip-path`.

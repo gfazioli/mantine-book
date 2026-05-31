@@ -1,5 +1,6 @@
 import {
   clampReflectionTarget,
+  computeFoldShadow,
   computeReflectionFold,
   type Point,
   pointsToCssPolygon,
@@ -140,6 +141,31 @@ describe('shouldCompleteFold', () => {
 
   it('ignores the velocity when the gesture is not a swipe', () => {
     expect(shouldCompleteFold(5, 40, false, -1, W)).toBe(false);
+  });
+});
+
+describe('computeFoldShadow', () => {
+  const midEdge: Point = { x: W, y: H / 2 };
+  const shadowAt = (px: number) =>
+    computeFoldShadow(computeReflectionFold(midEdge, { x: px, y: H / 2 }, W, H)!, W);
+
+  it('returns a reflected flap polygon and a crease-anchored gradient', () => {
+    const sh = shadowAt(0); // dragged to the spine
+    expect(sh.flapPolygon.length).toBeGreaterThanOrEqual(3);
+    // The gradient starts AT the crease midpoint…
+    const fold = computeReflectionFold(midEdge, { x: 0, y: H / 2 }, W, H)!;
+    expect(sh.gradient.x1).toBeCloseTo(fold.creaseMid.x, 3);
+    expect(sh.gradient.y1).toBeCloseTo(fold.creaseMid.y, 3);
+    // …and extends a non-degenerate distance into the flap.
+    expect(
+      Math.hypot(sh.gradient.x2 - sh.gradient.x1, sh.gradient.y2 - sh.gradient.y1)
+    ).toBeGreaterThan(1);
+  });
+
+  it('strength peaks mid-fold and vanishes at rest and at a full turn', () => {
+    expect(shadowAt(W - 4).strength).toBeLessThan(0.1); // near rest
+    expect(shadowAt(0).strength).toBeGreaterThan(0.9); // at the spine (~50%)
+    expect(shadowAt(-W).strength).toBeLessThan(0.1); // full turn
   });
 });
 
