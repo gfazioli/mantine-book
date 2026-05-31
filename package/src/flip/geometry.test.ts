@@ -3,6 +3,7 @@ import {
   computeReflectionFold,
   type Point,
   pointsToCssPolygon,
+  shouldCompleteFold,
 } from './geometry';
 
 const W = 400;
@@ -103,6 +104,42 @@ describe('computeReflectionFold', () => {
     const reflected = applyMatrix(fold.matrix, leftAnchor);
     expect(reflected.x).toBeCloseTo(-W * 0.4, 3);
     expect(reflected.y).toBeCloseTo(H / 2, 3);
+  });
+
+  // Regression: at a full turn the crease passes through the spine (mid.x = 0).
+  // A spine-midpoint reference used to sit exactly on the crease, so both layers
+  // kept the same half and flatFront/flap became the SAME full-page polygon.
+  it('does not collapse flatFront and flap onto the same half at a full turn', () => {
+    const fold = computeReflectionFold(midEdge, { x: -W, y: H / 2 }, W, H)!;
+    // The whole sheet is lifted → flap is the full page…
+    expect(fold.flap.length).toBeGreaterThanOrEqual(4);
+    // …and the flat region must NOT be that same polygon.
+    expect(JSON.stringify(fold.flatFront)).not.toBe(JSON.stringify(fold.flap));
+  });
+});
+
+describe('shouldCompleteFold', () => {
+  const W = 400;
+
+  it('completes past the threshold regardless of the swipe', () => {
+    expect(shouldCompleteFold(60, 40, false, 0, W)).toBe(true);
+    expect(shouldCompleteFold(20, 40, false, 0, W)).toBe(false);
+  });
+
+  // Regression: a fast swipe toward the spine must complete on BOTH sides.
+  it('completes a fast swipe toward the spine — side-aware', () => {
+    // Resting on the right (anchorX > 0): a leftward swipe (vx < 0) completes;
+    // a rightward swipe (away from the spine) does not.
+    expect(shouldCompleteFold(5, 40, true, -1, W)).toBe(true);
+    expect(shouldCompleteFold(5, 40, true, 1, W)).toBe(false);
+    // Flipped to the left (anchorX < 0): a RIGHTWARD swipe (vx > 0) completes;
+    // a leftward swipe (away from the spine) does not.
+    expect(shouldCompleteFold(5, 40, true, 1, -W)).toBe(true);
+    expect(shouldCompleteFold(5, 40, true, -1, -W)).toBe(false);
+  });
+
+  it('ignores the velocity when the gesture is not a swipe', () => {
+    expect(shouldCompleteFold(5, 40, false, -1, W)).toBe(false);
   });
 });
 

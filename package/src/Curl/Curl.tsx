@@ -22,6 +22,7 @@ import {
   type Point,
   pointsToCssPolygon,
   type ReflectionFold,
+  shouldCompleteFold,
 } from '../flip/geometry';
 import classes from './Curl.module.css';
 
@@ -342,12 +343,16 @@ export const Curl = factory<CurlFactory>((_props) => {
       }
 
       // Complete when dragged past the threshold, or on a fast swipe toward the
-      // spine. Complete → sweep the target across the spine (full turn);
-      // snap-back → return the target to the anchor (rest, no fold).
-      const swipedForward = summary.kind === 'swipe' && summary.velocity.x < 0;
-      const complete = current.progress >= threshold || swipedForward;
-      // Complete → sweep to the OPPOSITE edge (full turn onto the other half);
-      // snap-back → return to the anchor edge (rest, no fold).
+      // spine (side-aware — see shouldCompleteFold). Complete → sweep to the
+      // OPPOSITE edge (full turn onto the other half); snap-back → return to the
+      // anchor edge (rest, no fold).
+      const complete = shouldCompleteFold(
+        current.progress,
+        threshold,
+        summary.kind === 'swipe',
+        summary.velocity.x,
+        anchor.x
+      );
       const to: Point = complete ? { x: -anchor.x, y: anchor.y } : { x: anchor.x, y: anchor.y };
 
       animator.start({
