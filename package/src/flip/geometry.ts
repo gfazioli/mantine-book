@@ -725,11 +725,17 @@ export function computeReflectionFold(
   const mid: Point = { x: (anchor.x + target.x) / 2, y: (anchor.y + target.y) / 2 };
   const creaseDir: Point = { x: -dragDir.y, y: dragDir.x }; // crease runs ⟂ to the drag
 
+  // The page spans from the spine (x = 0) to the free edge (anchor.x = ±W):
+  // +W when the sheet rests in the right half, −W when it rests (flipped) in
+  // the left half. Deriving the rect from the anchor makes the fold work
+  // symmetrically on both sides.
+  const xMin = Math.min(0, anchor.x);
+  const xMax = Math.max(0, anchor.x);
   const rect: Point[] = [
-    { x: 0, y: 0 },
-    { x: pageWidth, y: 0 },
-    { x: pageWidth, y: pageHeight },
-    { x: 0, y: pageHeight },
+    { x: xMin, y: 0 },
+    { x: xMax, y: 0 },
+    { x: xMax, y: pageHeight },
+    { x: xMin, y: pageHeight },
   ];
   const spineRef: Point = { x: 0, y: pageHeight / 2 };
   const flatFront = clipToHalfPlane(rect, mid, creaseDir, spineRef);
@@ -747,7 +753,12 @@ export function computeReflectionFold(
     2 * dm * dragDir.y, // f
   ];
 
-  const progress = Math.max(0, Math.min(100, ((pageWidth - target.x) / (2 * pageWidth)) * 100));
+  // 0 at rest (target on the free edge), 50 at the spine, 100 at a full turn
+  // onto the other half — symmetric for either side.
+  const progress = Math.max(
+    0,
+    Math.min(100, (Math.abs(anchor.x - target.x) / (2 * pageWidth)) * 100)
+  );
 
   return { flatFront, flap, matrix, progress, creaseMid: mid, creaseDir };
 }

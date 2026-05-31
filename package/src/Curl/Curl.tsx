@@ -302,9 +302,10 @@ export const Curl = factory<CurlFactory>((_props) => {
   const handleStart = useCallback(
     (local: Point) => {
       animator.stop();
-      // Anchor = the grabbed point, snapped to the free edge (x = W). ANY point
-      // along the edge is valid — no corner/zone special-casing.
-      anchorRef.current = { x: W, y: Math.max(0, Math.min(H, local.y)) };
+      // Anchor = the grabbed point, snapped to the CURRENT free edge: the right
+      // edge (x = +W) at rest, or the left edge (x = −W) once flipped (the sheet
+      // then rests in the left half). ANY point along that edge is valid.
+      anchorRef.current = { x: flippedRef.current ? -W : W, y: Math.max(0, Math.min(H, local.y)) };
       lastTargetRef.current = null;
       // Start flat; the first move creates the fold (no pop on grab).
       setBoth(null, flippedRef.current);
@@ -345,7 +346,9 @@ export const Curl = factory<CurlFactory>((_props) => {
       // snap-back → return the target to the anchor (rest, no fold).
       const swipedForward = summary.kind === 'swipe' && summary.velocity.x < 0;
       const complete = current.progress >= threshold || swipedForward;
-      const to: Point = complete ? { x: -W, y: anchor.y } : { x: anchor.x, y: anchor.y };
+      // Complete → sweep to the OPPOSITE edge (full turn onto the other half);
+      // snap-back → return to the anchor edge (rest, no fold).
+      const to: Point = complete ? { x: -anchor.x, y: anchor.y } : { x: anchor.x, y: anchor.y };
 
       animator.start({
         duration: flippingTime ?? 600,
@@ -404,10 +407,24 @@ export const Curl = factory<CurlFactory>((_props) => {
   /* --- Derived per-frame geometry ------------------------------- */
 
   const folding = fold !== null;
-  const flatClip = fold ? pointsToCssPolygon(fold.flatFront, 'px') : null;
-  const flapClip = fold ? pointsToCssPolygon(fold.flap, 'px') : null;
+
+  // The resting sheet (and the fold layers) sit on the current side: the right
+  // half at rest, the left half once flipped. Geometry from `computeReflectionFold`
+  // is in PAGE coords (spine at x = 0); a layer placed on the left half has its
+  // local origin at page x = −W, so we shift page coords by `off` into local.
+  const restLeft = flipped ? 0 : W;
+  const off = flipped ? W : 0;
+  const shift = (poly: Point[]): Point[] => poly.map((p) => ({ x: p.x + off, y: p.y }));
+  const flatClip = fold ? pointsToCssPolygon(shift(fold.flatFront), 'px') : null;
+  const flapClip = fold ? pointsToCssPolygon(shift(fold.flap), 'px') : null;
   const flapMatrix = fold
-    ? `matrix(${fold.matrix.map((n) => n.toFixed(5)).join(', ')})`
+    ? (() => {
+        const [a, b, c, d, e, f] = fold.matrix;
+        // Conjugate the page-space reflection by the local-origin x-shift.
+        const el = e + off * (1 - a);
+        const fl = f - b * off;
+        return `matrix(${[a, b, c, d, el, fl].map((n) => n.toFixed(5)).join(', ')})`;
+      })()
     : undefined;
   const curlVisible = folding && flapClip !== null;
 
@@ -421,12 +438,15 @@ export const Curl = factory<CurlFactory>((_props) => {
       {...dragHandlers}
       mod={[{ folding, flipped, disabled }, mod]}
     >
-      {/* Resting face (Front at rest, Back once flipped). Full when idle;
-          clipped to the still-flat (spine-side) region while folding so the
-          lifted area shows through to the background. */}
+      {/* Resting face (Front in the right half; Back in the left half once
+          flipped). Full when idle; clipped to the still-flat (spine-side)
+          region while folding so the lifted area shows the background. */}
       <div
         {...getStyles('restSheet', {
-          style: folding && flatClip ? { clipPath: flatClip, WebkitClipPath: flatClip } : undefined,
+          style: {
+            left: restLeft,
+            ...(folding && flatClip ? { clipPath: flatClip, WebkitClipPath: flatClip } : null),
+          },
         })}
       >
         {restFaceNode}
@@ -434,13 +454,13 @@ export const Curl = factory<CurlFactory>((_props) => {
 
       {/* The lifting flap (the opposite face), clipped to the flap region and
           reflected across the crease (the det −1 matrix also mirrors it to show
-          the back). Positioned over the sheet (right half); overflow stays
-          visible so the reflected flap can sweep left past the spine. */}
+          the back). Sits on the resting side; overflow stays visible so the
+          reflected flap can sweep across the spine to the other half. */}
       <div
         {...getStyles('curlSheet', {
           style: curlVisible
             ? {
-                left: W,
+                left: restLeft,
                 transformOrigin: '0 0',
                 transform: flapMatrix,
                 clipPath: flapClip!,
