@@ -17,15 +17,11 @@ import { CurlFace, type CurlFaceAlign, type CurlFaceProps } from '../CurlFace/Cu
 import { useFlipAnimator } from '../flip/animator';
 import { type DragSummary, useDragController } from '../flip/drag';
 import {
-  clampCorner,
-  computeFold,
-  convertToSpread,
-  type FlipCorner,
-  type FoldGeometry,
-  getFlatPartPolygon,
-  getFlippingPageLocalPolygon,
+  clampReflectionTarget,
+  computeReflectionFold,
   type Point,
   pointsToCssPolygon,
+  type ReflectionFold,
 } from '../flip/geometry';
 import classes from './Curl.module.css';
 
@@ -91,7 +87,7 @@ export interface CurlBaseProps {
   mobileScrollSupport?: boolean;
 
   /** Called as the fold changes (during drag and during the settle animation). */
-  onFold?: (info: { progress: number; corner: FlipCorner; phase: 'move' | 'settle' }) => void;
+  onFold?: (info: { progress: number; phase: 'move' | 'settle' }) => void;
 
   /** Called once when a release settle finishes, with the resting state. */
   onFlip?: (info: { flipped: boolean }) => void;
@@ -241,45 +237,32 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   /* --- Fold state ----------------------------------------------- */
 
-  // Single combined state so a fold-clear and a flipped-toggle apply in ONE
-  // render — otherwise the in-between render (fold cleared, flipped not yet
-  // updated) flashes the resting Front for a frame.
-  //
-  // The fold math runs NATIVELY for the grabbed corner ('top' | 'bottom') —
-  // computeFold/getFlippingPageLocalPolygon/getFlatPartPolygon are all given
-  // the real corner. Only the BACK direction (after a flip) is realised with a
-  // CSS scaleX(-1) mirror of the whole group; the bottom corner is NOT a
-  // mirror, it is the geometry's own bottom solution.
-  const [view, setView] = useState<{
-    fold: FoldGeometry | null;
-    flipped: boolean;
-    corner: FlipCorner;
-  }>({ fold: null, flipped: false, corner: 'top' });
+  // Unified REFLECTION fold: the grabbed point on the free edge folds onto the
+  // pointer; the crease is the perpendicular bisector of grab→pointer and the
+  // lifted flap is reflected across it. ONE path covers every grab point and
+  // every drag direction (corner, mid-edge, up/down) — no corners/zones/modes.
+  // See RESEARCH-page-curl.md. `flipped` only swaps which face rests vs lifts.
+  const [view, setView] = useState<{ fold: ReflectionFold | null; flipped: boolean }>({
+    fold: null,
+    flipped: false,
+  });
   const fold = view.fold;
   const flipped = view.flipped;
-  const activeCorner = view.corner;
 
   const flippedRef = useRef(false);
-  const cornerRef = useRef<FlipCorner>('top');
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const foldRef = useRef<FoldGeometry | null>(null);
-  // Last clamped pointer position fed to computeFold — the release settle
-  // animates FROM here so it starts exactly where the drag left off.
-  const lastCursorRef = useRef<Point | null>(null);
+  const foldRef = useRef<ReflectionFold | null>(null);
+  // The grabbed point on the free edge (fold anchor) and the last clamped
+  // target — the release settle animates the target from here.
+  const anchorRef = useRef<Point>({ x: W, y: 0 });
+  const lastTargetRef = useRef<Point | null>(null);
   const animator = useFlipAnimator();
 
-  // Atomic setter: keeps refs and state in sync in a single update.
-  const setBoth = useCallback((g: FoldGeometry | null, f: boolean, c: FlipCorner) => {
-    foldRef.current = g;
-    flippedRef.current = f;
-    cornerRef.current = c;
-    setView({ fold: g, flipped: f, corner: c });
+  const setBoth = useCallback((f: ReflectionFold | null, flip: boolean) => {
+    foldRef.current = f;
+    flippedRef.current = flip;
+    setView({ fold: f, flipped: flip });
   }, []);
-
-  const setFoldBoth = useCallback(
-    (g: FoldGeometry | null) => setBoth(g, flippedRef.current, cornerRef.current),
-    [setBoth]
-  );
 
   const onFoldRef = useRef(onFold);
   onFoldRef.current = onFold;
@@ -300,130 +283,92 @@ export const Curl = factory<CurlFactory>((_props) => {
     [ref]
   );
 
-  /* --- Pointer → sheet-local mapping ---------------------------- */
+  /* --- Pointer → page-local mapping ----------------------------- */
 
+  // Page-local coords: x = 0 is the spine (centre seam of the 2W play-zone),
+  // x = W is the free right edge; y ∈ [0, H]. The sheet rests in the right half.
   const getLocalPoint = useCallback(
     (clientX: number, clientY: number): Point => {
       const rect = rootRef.current?.getBoundingClientRect();
       const left = rect?.left ?? 0;
       const top = rect?.top ?? 0;
-      const bx = clientX - left;
-      // The hinge is the centre seam (play-zone x = W). For a FORWARD fold the
-      // sheet is on the right (local x = bx - W); for a BACK fold it's on the
-      // left, mirrored about the hinge (local x = W - bx). Either way the
-      // active corner travels local-x W → 0 as it nears the hinge.
-      return flippedRef.current ? { x: W - bx, y: clientY - top } : { x: bx - W, y: clientY - top };
+      return { x: clientX - left - W, y: clientY - top };
     },
     [W]
   );
 
-  const computeFor = useCallback(
-    (cursor: Point): FoldGeometry | null => {
-      // Clamp the dragged corner into the corner's valid fold domain so the
-      // curl follows the pointer everywhere, SATURATES at its limits, and never
-      // breaks/freezes/inverts — no matter how far the pointer roams. The same
-      // single clamp covers the live drag and the release settle.
-      const clamped = clampCorner(cursor, W, H, cornerRef.current);
-      lastCursorRef.current = clamped;
-      try {
-        return computeFold({
-          cursor: clamped,
-          pageWidth: W,
-          pageHeight: H,
-          corner: cornerRef.current,
-          direction: 'forward',
-        });
-      } catch {
-        return null;
-      }
-    },
-    [W, H]
-  );
-
   /* --- Drag wiring ---------------------------------------------- */
-
-  // StPageFlip / iBooks model: the fold is driven by the ABSOLUTE pointer
-  // position in page-local coords (what `getLocalPoint` returns), NOT a delta
-  // from the grabbed corner. This is what lets a grab anywhere along the edge
-  // — corner OR mid-height — produce a clean, organic curl: the vertical
-  // component stays meaningful as the page is swept toward the spine.
 
   const handleStart = useCallback(
     (local: Point) => {
       animator.stop();
-      // Active corner = the half the grab lands in (StPageFlip's rule).
-      const corner: FlipCorner = local.y >= H / 2 ? 'bottom' : 'top';
-      lastCursorRef.current = null;
-      // The grab itself sits on the edge (x ≈ W), a degenerate 180° fold, so
-      // stay flat until the first move sweeps the pointer inward.
-      setBoth(null, flippedRef.current, corner);
+      // Anchor = the grabbed point, snapped to the free edge (x = W). ANY point
+      // along the edge is valid — no corner/zone special-casing.
+      anchorRef.current = { x: W, y: Math.max(0, Math.min(H, local.y)) };
+      lastTargetRef.current = null;
+      // Start flat; the first move creates the fold (no pop on grab).
+      setBoth(null, flippedRef.current);
     },
-    [H, animator, setBoth]
+    [W, H, animator, setBoth]
   );
 
   const handleMove = useCallback(
     (local: Point) => {
-      const g = computeFor(local);
-      if (g) {
-        setFoldBoth(g);
-        onFoldRef.current?.({
-          progress: g.progress,
-          corner: cornerRef.current,
-          phase: 'move',
-        });
+      const anchor = anchorRef.current;
+      const target = clampReflectionTarget(anchor, local, W, H);
+      lastTargetRef.current = target;
+      const f = computeReflectionFold(anchor, target, W, H);
+      setBoth(f, flippedRef.current);
+      if (f) {
+        onFoldRef.current?.({ progress: f.progress, phase: 'move' });
       }
     },
-    [computeFor, setFoldBoth]
+    [W, H, setBoth]
   );
 
   const handleRelease = useCallback(
     (summary: DragSummary) => {
       const current = foldRef.current;
       const wasFlipped = flippedRef.current;
-      const corner = cornerRef.current;
+      const anchor = anchorRef.current;
+      const from = lastTargetRef.current;
 
       // A click (no real drag) just settles back to the current rest state.
-      if (summary.kind === 'click' || !current || !lastCursorRef.current) {
-        setFoldBoth(null);
+      if (summary.kind === 'click' || !current || !from) {
+        setBoth(null, wasFlipped);
         onFlipRef.current?.({ flipped: wasFlipped });
         return;
       }
 
-      // Complete when dragged past the threshold, or on a fast swipe toward
-      // the spine (logical-x decreasing) even if the curl didn't reach it.
+      // Complete when dragged past the threshold, or on a fast swipe toward the
+      // spine. Complete → sweep the target across the spine (full turn);
+      // snap-back → return the target to the anchor (rest, no fold).
       const swipedForward = summary.kind === 'swipe' && summary.velocity.x < 0;
       const complete = current.progress >= threshold || swipedForward;
-
-      // Settle from where the drag left off to the StPageFlip rest targets:
-      // a completed turn lands flat past the spine at (−W, restY); a snap-back
-      // returns flat to rest at (W, restY). clampCorner (inside computeFor)
-      // keeps every intermediate frame valid.
-      const restY = corner === 'bottom' ? H : 0;
-      const from: Point = { ...lastCursorRef.current };
-      const to: Point = complete ? { x: -W, y: restY } : { x: W, y: restY };
+      const to: Point = complete ? { x: -W, y: anchor.y } : { x: anchor.x, y: anchor.y };
 
       animator.start({
         duration: flippingTime ?? 600,
         onProgress: (eased) => {
-          const cursor: Point = {
+          const t: Point = {
             x: from.x + (to.x - from.x) * eased,
             y: from.y + (to.y - from.y) * eased,
           };
-          const g = computeFor(cursor);
-          if (g) {
-            setFoldBoth(g);
-            onFoldRef.current?.({ progress: g.progress, corner, phase: 'settle' });
+          const f = computeReflectionFold(anchor, t, W, H);
+          setBoth(f, wasFlipped);
+          if (f) {
+            onFoldRef.current?.({ progress: f.progress, phase: 'settle' });
           }
         },
         onComplete: () => {
           // A completed fold toggles the resting side; otherwise snap back.
           const nowFlipped = complete ? !wasFlipped : wasFlipped;
-          setBoth(null, nowFlipped, corner);
+          setBoth(null, nowFlipped);
           onFlipRef.current?.({ flipped: nowFlipped });
         },
       });
     },
-    [H, W, threshold, flippingTime, animator, computeFor, setFoldBoth, setBoth]
+    [W, H, threshold, flippingTime, animator, setBoth]
   );
 
   const drag = useDragController({
@@ -447,46 +392,24 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   /* --- Face content (rendered once, React-owned) ---------------- */
 
-  // Only the BACK direction mirrors the group (scaleX(-1)); counter-mirror the
-  // face contents on the same axis so text/images stay upright and readable.
-  // The bottom corner needs no mirror — it is rendered with native geometry.
-  const faceMirror = flipped ? { transform: 'scaleX(-1)' } : undefined;
-  const frontNode = (
-    <div {...getStyles('face', { style: { ...frontFlex, ...faceMirror } })}>
-      {faces.front?.content}
-    </div>
-  );
-  const backNode = (
-    <div {...getStyles('face', { style: { ...backFlex, ...faceMirror } })}>
-      {faces.back?.content}
-    </div>
-  );
+  // No per-face mirror: the reflection matrix (det −1) mirrors the lifted flap
+  // automatically; the resting face is flat and unmirrored.
+  const frontNode = <div {...getStyles('face', { style: frontFlex })}>{faces.front?.content}</div>;
+  const backNode = <div {...getStyles('face', { style: backFlex })}>{faces.back?.content}</div>;
+
+  // The face lying flat at rest, and the one shown on the lifting flap.
+  const restFaceNode = flipped ? backNode : frontNode;
+  const liftFaceNode = flipped ? frontNode : backNode;
 
   /* --- Derived per-frame geometry ------------------------------- */
 
   const folding = fold !== null;
-
-  // The face lying flat at rest, and the one shown on the lifting flap.
-  // Geometry is computed NATIVELY for the active corner; only the back
-  // direction is realised by mirroring the group (see render).
-  const restFaceNode = flipped ? backNode : frontNode;
-  const liftFaceNode = flipped ? frontNode : backNode;
-
-  let curlClip: string | null = null;
-  let curlTransform: string | undefined;
-  let flatClip: string | null = null;
-
-  if (fold) {
-    const localPoly = getFlippingPageLocalPolygon(fold, activeCorner, 'forward');
-    curlClip = pointsToCssPolygon(localPoly, 'px');
-    const globalPos = convertToSpread(fold.position, 'forward', W);
-    curlTransform = `translate3d(${globalPos.x.toFixed(3)}px, ${globalPos.y.toFixed(3)}px, 0) rotate(${fold.angle.toFixed(5)}rad)`;
-    // Resting face keeps only the still-flat region; the lifted area is left
-    // transparent (single sheet — nothing underneath).
-    flatClip = pointsToCssPolygon(getFlatPartPolygon(fold, activeCorner, W, H, 'forward'), 'px');
-  }
-
-  const curlVisible = folding && curlClip !== null;
+  const flatClip = fold ? pointsToCssPolygon(fold.flatFront, 'px') : null;
+  const flapClip = fold ? pointsToCssPolygon(fold.flap, 'px') : null;
+  const flapMatrix = fold
+    ? `matrix(${fold.matrix.map((n) => n.toFixed(5)).join(', ')})`
+    : undefined;
+  const curlVisible = folding && flapClip !== null;
 
   /* --- Render --------------------------------------------------- */
 
@@ -496,53 +419,41 @@ export const Curl = factory<CurlFactory>((_props) => {
       {...getStyles('root')}
       {...others}
       {...dragHandlers}
-      mod={[{ folding, flipped, corner: activeCorner, disabled }, mod]}
+      mod={[{ folding, flipped, disabled }, mod]}
     >
-      {/* Mirror wrapper: the curl geometry is native per corner. Only the BACK
-          direction (after a flip) mirrors the group with scaleX(-1); the bottom
-          corner is rendered directly from its own geometry. */}
-      <div className={classes.mirror} style={flipped ? { transform: 'scaleX(-1)' } : undefined}>
-        {/* Resting face (Front at rest, Back once flipped). Full when idle;
-            clipped to the still-flat region while folding so the lifted area
-            shows through to the background (single sheet — nothing under it). */}
-        <div
-          {...getStyles('restSheet', {
-            style:
-              folding && flatClip ? { clipPath: flatClip, WebkitClipPath: flatClip } : undefined,
-          })}
-        >
-          {restFaceNode}
-        </div>
-
-        {/* The lifting flap (the opposite face). Always mounted (hidden at rest)
-            so content + handlers persist and aren't re-created each fold. */}
-        <div
-          {...getStyles('curlSheet', {
-            style: curlVisible
-              ? { transform: curlTransform, clipPath: curlClip!, WebkitClipPath: curlClip! }
-              : { display: 'none' },
-          })}
-        >
-          {/* The bottom-corner flap's local clip polygon lives in y ∈ [-H, 0]
-              (above the box origin), so its face content must be lifted by one
-              page height to sit under the clip. The top corner needs no shift
-              (its polygon is in y ∈ [0, H]). */}
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              transform: activeCorner === 'bottom' ? 'translateY(-100%)' : undefined,
-            }}
-          >
-            {liftFaceNode}
-          </div>
-        </div>
+      {/* Resting face (Front at rest, Back once flipped). Full when idle;
+          clipped to the still-flat (spine-side) region while folding so the
+          lifted area shows through to the background. */}
+      <div
+        {...getStyles('restSheet', {
+          style: folding && flatClip ? { clipPath: flatClip, WebkitClipPath: flatClip } : undefined,
+        })}
+      >
+        {restFaceNode}
       </div>
 
-      {/* TODO(shadows): the curl shadows (crease + drop) are temporarily
-          disabled. The StPageFlip shadow port smeared a black band past the
-          sheet; they'll be reintroduced once the base curl geometry is
-          validated. `shadowLayer` stylesName + shadow.ts stay in place. */}
+      {/* The lifting flap (the opposite face), clipped to the flap region and
+          reflected across the crease (the det −1 matrix also mirrors it to show
+          the back). Positioned over the sheet (right half); overflow stays
+          visible so the reflected flap can sweep left past the spine. */}
+      <div
+        {...getStyles('curlSheet', {
+          style: curlVisible
+            ? {
+                left: W,
+                transformOrigin: '0 0',
+                transform: flapMatrix,
+                clipPath: flapClip!,
+                WebkitClipPath: flapClip!,
+              }
+            : { display: 'none' },
+        })}
+      >
+        {liftFaceNode}
+      </div>
+
+      {/* TODO(shadows): the crease + drop shadows are temporarily disabled;
+          they'll be reintroduced once the base curl geometry is validated. */}
     </Box>
   );
 });
