@@ -1,118 +1,108 @@
 import {
-  computeFold,
-  distance,
-  getBottomClipPolygon,
-  getFlippingClipPolygon,
+  clampReflectionTarget,
+  computeReflectionFold,
+  type Point,
   pointsToCssPolygon,
-  type FoldInput,
 } from './geometry';
 
-const PAGE_WIDTH = 400;
-const PAGE_HEIGHT = 600;
+const W = 400;
+const H = 600;
 
-function basicInput(overrides: Partial<FoldInput> = {}): FoldInput {
-  return {
-    cursor: { x: 200, y: 300 },
-    pageWidth: PAGE_WIDTH,
-    pageHeight: PAGE_HEIGHT,
-    corner: 'top',
-    direction: 'forward',
-    ...overrides,
-  };
-}
+const SPINE_TOP: Point = { x: 0, y: 0 };
+const SPINE_BOTTOM: Point = { x: 0, y: H };
+const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 
-describe('computeFold', () => {
-  it('returns a finite angle for a cursor near the page centre (top corner)', () => {
-    const geo = computeFold(basicInput({ cursor: { x: 200, y: 100 } }));
-    expect(Number.isFinite(geo.angle)).toBe(true);
-    expect(geo.angle).not.toBe(0);
+/** Apply a CSS matrix [a,b,c,d,e,f] to a point. */
+const applyMatrix = (m: readonly number[], p: Point): Point => ({
+  x: m[0] * p.x + m[2] * p.y + m[4],
+  y: m[1] * p.x + m[3] * p.y + m[5],
+});
+
+const yExtent = (poly: Point[]) => {
+  const ys = poly.map((p) => p.y);
+  return [Math.min(...ys), Math.max(...ys)] as const;
+};
+
+describe('clampReflectionTarget', () => {
+  const anchor: Point = { x: W, y: 0 };
+
+  it('leaves an in-reach target unchanged', () => {
+    const target: Point = { x: 0, y: H / 2 };
+    const t = clampReflectionTarget(anchor, target, W, H);
+    expect(t.x).toBeCloseTo(target.x, 3);
+    expect(t.y).toBeCloseTo(target.y, 3);
   });
 
-  it('inverts the angle sign for direction="back"', () => {
-    const forward = computeFold(basicInput({ direction: 'forward' }));
-    const back = computeFold(basicInput({ direction: 'back' }));
-    expect(Math.sign(forward.angle)).not.toBe(Math.sign(back.angle));
-    expect(Math.abs(forward.angle)).toBeCloseTo(Math.abs(back.angle));
-  });
-
-  it('throws when the cursor sits exactly on the original outer corner', () => {
-    expect(() => computeFold(basicInput({ cursor: { x: PAGE_WIDTH, y: 0 } }))).toThrow(
-      /cursor too close to the page corner/
-    );
-  });
-
-  it('clamps the cursor onto a circle of radius=pageWidth around the spine for corner="top"', () => {
-    // Dragging way to the left of the spine — should be pulled back onto the arc.
-    const geo = computeFold(basicInput({ cursor: { x: -800, y: 100 } }));
-    const radius = Math.sqrt(geo.position.x * geo.position.x + geo.position.y * geo.position.y);
-    // Clamp may use the full diagonal in the secondary stage, so the
-    // ceiling is `diagonal = √(W² + H²) ≈ 721`. We just check it stays bounded.
-    const diagonal = Math.sqrt(PAGE_WIDTH * PAGE_WIDTH + PAGE_HEIGHT * PAGE_HEIGHT);
-    expect(radius).toBeLessThanOrEqual(diagonal + 0.5);
-  });
-
-  it('reports progress 0..100', () => {
-    const early = computeFold(basicInput({ cursor: { x: PAGE_WIDTH - 1, y: 1 } }));
-    expect(early.progress).toBeLessThan(5);
-
-    const halfway = computeFold(basicInput({ cursor: { x: 0, y: PAGE_HEIGHT / 2 } }));
-    expect(halfway.progress).toBeGreaterThanOrEqual(45);
-    expect(halfway.progress).toBeLessThanOrEqual(55);
-  });
-
-  it('produces a 4-corner rect for the rotated page', () => {
-    const geo = computeFold(basicInput());
-    expect(geo.rect).toHaveProperty('topLeft.x');
-    expect(geo.rect).toHaveProperty('topRight.x');
-    expect(geo.rect).toHaveProperty('bottomLeft.x');
-    expect(geo.rect).toHaveProperty('bottomRight.x');
-    // The four corners should be distinct.
-    const xs = [
-      geo.rect.topLeft.x,
-      geo.rect.topRight.x,
-      geo.rect.bottomLeft.x,
-      geo.rect.bottomRight.x,
-    ];
-    const uniqueXs = new Set(xs.map((x) => x.toFixed(2)));
-    expect(uniqueXs.size).toBeGreaterThanOrEqual(3);
-  });
-
-  it('returns mirrored geometry for corner="bottom" vs corner="top" at the same cursor', () => {
-    const top = computeFold(basicInput({ cursor: { x: 100, y: 100 }, corner: 'top' }));
-    const bottom = computeFold(
-      basicInput({ cursor: { x: 100, y: PAGE_HEIGHT - 100 }, corner: 'bottom' })
-    );
-    // The angle magnitudes should match (mirrored around the horizontal axis).
-    expect(Math.abs(top.angle)).toBeCloseTo(Math.abs(bottom.angle), 3);
-  });
-
-  it('produces at least one non-null intersection mid-flip', () => {
-    const geo = computeFold(basicInput({ cursor: { x: 100, y: 200 } }));
-    const hasAny =
-      geo.topIntersect !== null || geo.sideIntersect !== null || geo.bottomIntersect !== null;
-    expect(hasAny).toBe(true);
+  it('clamps a far target within reach of BOTH spine corners (spine stays flat)', () => {
+    const t = clampReflectionTarget(anchor, { x: -3000, y: -3000 }, W, H);
+    expect(dist(SPINE_TOP, t)).toBeLessThanOrEqual(dist(SPINE_TOP, anchor) + 0.5);
+    expect(dist(SPINE_BOTTOM, t)).toBeLessThanOrEqual(dist(SPINE_BOTTOM, anchor) + 0.5);
   });
 });
 
-describe('getFlippingClipPolygon', () => {
-  it('starts with the rotated top-left corner', () => {
-    const geo = computeFold(basicInput({ cursor: { x: 100, y: 100 } }));
-    const poly = getFlippingClipPolygon(geo, 'top');
-    expect(poly[0]).toEqual(geo.rect.topLeft);
+describe('computeReflectionFold', () => {
+  const topCorner: Point = { x: W, y: 0 };
+  const midEdge: Point = { x: W, y: H / 2 };
+
+  it('returns null at rest (no drag)', () => {
+    expect(computeReflectionFold(topCorner, { x: W, y: 0 }, W, H)).toBeNull();
+    expect(computeReflectionFold(midEdge, { x: W, y: H / 2 }, W, H)).toBeNull();
   });
 
-  it('returns ≥3 points (a valid polygon) for a mid-flip cursor', () => {
-    const geo = computeFold(basicInput({ cursor: { x: 100, y: 200 } }));
-    const poly = getFlippingClipPolygon(geo, 'top');
-    expect(poly.length).toBeGreaterThanOrEqual(3);
+  it('returns flatFront and flap polygons mid-fold', () => {
+    const fold = computeReflectionFold(topCorner, { x: 0, y: H / 2 }, W, H);
+    expect(fold).not.toBeNull();
+    expect(fold!.flatFront.length).toBeGreaterThanOrEqual(3);
+    expect(fold!.flap.length).toBeGreaterThanOrEqual(3);
   });
-});
 
-describe('getBottomClipPolygon', () => {
-  it('returns a polygon describing the revealed area', () => {
-    const geo = computeFold(basicInput({ cursor: { x: 100, y: 200 } }));
-    const poly = getBottomClipPolygon(geo, 'top', PAGE_WIDTH, PAGE_HEIGHT);
-    expect(poly.length).toBeGreaterThanOrEqual(3);
+  it('the crease reflects the anchor exactly onto the target', () => {
+    const target: Point = { x: 0, y: H / 2 }; // in-reach → not clamped
+    const fold = computeReflectionFold(topCorner, target, W, H)!;
+    const reflected = applyMatrix(fold.matrix, topCorner);
+    expect(reflected.x).toBeCloseTo(target.x, 3);
+    expect(reflected.y).toBeCloseTo(target.y, 3);
+  });
+
+  it('matrix is a reflection (det = −1)', () => {
+    const fold = computeReflectionFold(topCorner, { x: 50, y: 250 }, W, H)!;
+    const [a, b, c, d] = fold.matrix;
+    expect(a * d - c * b).toBeCloseTo(-1, 6);
+  });
+
+  it('a mid-edge horizontal drag gives a full-height, near-vertical crease', () => {
+    const fold = computeReflectionFold(midEdge, { x: W * 0.4, y: H / 2 }, W, H)!;
+    // Crease runs ⟂ to the (horizontal) drag → nearly vertical.
+    expect(Math.abs(fold.creaseDir.x)).toBeLessThan(1e-6);
+    // The lifted flap spans the full page height.
+    const [yMin, yMax] = yExtent(fold.flap);
+    expect(yMin).toBeCloseTo(0, 3);
+    expect(yMax).toBeCloseTo(H, 3);
+  });
+
+  it('progress is ~0 near rest, ~50 at the spine, ~100 at a full turn', () => {
+    expect(computeReflectionFold(midEdge, { x: W - 4, y: H / 2 }, W, H)!.progress).toBeLessThan(2);
+    expect(computeReflectionFold(midEdge, { x: 0, y: H / 2 }, W, H)!.progress).toBeCloseTo(50, 0);
+    expect(computeReflectionFold(midEdge, { x: -W, y: H / 2 }, W, H)!.progress).toBeCloseTo(100, 0);
+  });
+
+  it('up vs down drags tilt the crease in opposite directions', () => {
+    const up = computeReflectionFold(midEdge, { x: W * 0.4, y: H * 0.2 }, W, H)!;
+    const down = computeReflectionFold(midEdge, { x: W * 0.4, y: H * 0.8 }, W, H)!;
+    // Vertical drag tilts the crease; the two tilts are mirror-symmetric.
+    expect(Math.sign(up.creaseDir.x)).not.toBe(Math.sign(down.creaseDir.x));
+    expect(Math.abs(up.creaseDir.x)).toBeCloseTo(Math.abs(down.creaseDir.x), 6);
+  });
+
+  it('works on the flipped (left) side: anchor=−W folds toward the right', () => {
+    const leftAnchor: Point = { x: -W, y: H / 2 };
+    const fold = computeReflectionFold(leftAnchor, { x: -W * 0.4, y: H / 2 }, W, H)!;
+    // The flap (anchor side) lives in the left half (x ≤ 0)…
+    expect(Math.max(...fold.flap.map((p) => p.x))).toBeLessThanOrEqual(0.001);
+    // …and the reflection still maps the anchor onto the target.
+    const reflected = applyMatrix(fold.matrix, leftAnchor);
+    expect(reflected.x).toBeCloseTo(-W * 0.4, 3);
+    expect(reflected.y).toBeCloseTo(H / 2, 3);
   });
 });
 
@@ -150,12 +140,5 @@ describe('pointsToCssPolygon', () => {
         { x: 2, y: 2 },
       ])
     ).toBeNull();
-  });
-});
-
-describe('distance', () => {
-  it('returns the Euclidean distance', () => {
-    expect(distance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
-    expect(distance({ x: 1, y: 1 }, { x: 1, y: 1 })).toBe(0);
   });
 });
