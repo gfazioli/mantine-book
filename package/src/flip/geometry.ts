@@ -143,8 +143,15 @@ export function computeReflectionFold(
     { x: xMax, y: pageHeight },
     { x: xMin, y: pageHeight },
   ];
-  const spineRef: Point = { x: 0, y: pageHeight / 2 };
-  const flatFront = clipToHalfPlane(rect, mid, creaseDir, spineRef);
+  // Reference points pick which half each layer keeps. They must never lie ON
+  // the crease, or `clipToHalfPlane` falls back to want=1 and both layers keep
+  // the same half. At a full turn the crease passes through the spine (mid.x =
+  // 0), so a spine-midpoint reference would sit exactly on it → flatFront and
+  // flap would both become the whole page. `mid + dragDir` is one unit off the
+  // crease on the flat (spine) side and is always valid; `anchor` is on the
+  // flap side by construction.
+  const flatRef: Point = { x: mid.x + dragDir.x, y: mid.y + dragDir.y };
+  const flatFront = clipToHalfPlane(rect, mid, creaseDir, flatRef);
   const flap = clipToHalfPlane(rect, mid, creaseDir, anchor);
 
   // Reflection across the crease as a CSS affine matrix:
@@ -167,6 +174,27 @@ export function computeReflectionFold(
   );
 
   return { flatFront, flap, matrix, progress, creaseMid: mid, creaseDir };
+}
+
+/**
+ * Decide whether releasing the drag should COMPLETE the fold (turn the page)
+ * or snap it back. Completes when dragged past `threshold`, or on a fast swipe
+ * heading toward the spine.
+ *
+ * "Toward the spine" is SIDE-AWARE: while the sheet rests on the right
+ * (`anchorX > 0`) that's a leftward swipe (`velocityX < 0`); once flipped to
+ * the left (`anchorX < 0`) it's a rightward swipe (`velocityX > 0`). The sign
+ * product `velocityX * anchorX < 0` captures both symmetrically.
+ */
+export function shouldCompleteFold(
+  progress: number,
+  threshold: number,
+  isSwipe: boolean,
+  velocityX: number,
+  anchorX: number
+): boolean {
+  const swipedTowardSpine = isSwipe && velocityX * anchorX < 0;
+  return progress >= threshold || swipedTowardSpine;
 }
 
 /**
