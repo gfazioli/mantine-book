@@ -14,14 +14,24 @@
  */
 export async function captureFaceTexture(
   node: HTMLElement,
-  pixelRatio: number
+  pixelRatio: number,
+  backgroundColor?: string
 ): Promise<HTMLImageElement | null> {
   try {
     const { toPng } = await import('html-to-image');
-    // skipFonts: html-to-image otherwise reads every stylesheet's cssRules to
-    // inline @font-face, which throws a SecurityError on cross-origin sheets
-    // (Google Fonts / CDN). We don't need embedded web fonts for the snapshot.
-    const dataUrl = await toPng(node, { pixelRatio, skipFonts: true });
+    const rect = node.getBoundingClientRect();
+    const dataUrl = await toPng(node, {
+      pixelRatio,
+      // skipFonts: html-to-image otherwise reads every stylesheet's cssRules to
+      // inline @font-face, throwing a SecurityError on cross-origin sheets
+      // (Google Fonts / CDN). We don't need embedded web fonts for the texture.
+      skipFonts: true,
+      // An opaque fill so the texture is never transparent (the page rests on a
+      // solid sheet); also the base when a face has no background of its own.
+      backgroundColor,
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    });
     const img = new Image();
     img.decoding = 'async';
     await new Promise<void>((resolve, reject) => {
