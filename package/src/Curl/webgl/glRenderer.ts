@@ -67,10 +67,13 @@ void main() {
     light *= 0.82;                         // the curled-under back reads a touch darker
   }
   vec3 rgb = base.rgb * clamp(light, 0.0, 1.3) + vec3(spec * 0.6); // additive specular highlight
-  // Cast shadow: the lifted curl darkens the flat page (vDist < 0) near the crease.
+  // Cast shadow: a soft darkening the lifted curl drops on the flat page
+  // (vDist < 0) near the crease. A smoothstep falloff over a wide band keeps it
+  // a gentle gradient rather than a hard-edged stripe.
   if (vDist < 0.0 && uShadow > 0.0) {
-    float t = clamp(1.0 + vDist / uShadowBand, 0.0, 1.0);
-    rgb *= 1.0 - uShadow * t * t;
+    float t = clamp(-vDist / uShadowBand, 0.0, 1.0);   // 0 at the crease → 1 at the band edge
+    float shade = uShadow * 0.55 * (1.0 - smoothstep(0.0, 1.0, t));
+    rgb *= 1.0 - shade;
   }
   fragColor = vec4(rgb, base.a);
 }`;
@@ -362,8 +365,9 @@ export class CurlGlRenderer {
     gl.uniform1f(gl.getUniformLocation(this.program, 'uDepth'), depthScale * 2);
     gl.uniform3f(gl.getUniformLocation(this.program, 'uLightDir'), -0.3, -0.4, 0.85);
     gl.uniform1f(gl.getUniformLocation(this.program, 'uShadow'), shadowStrength);
-    // The cast shadow fades over roughly the curl's overhang (≈ the roll height).
-    gl.uniform1f(gl.getUniformLocation(this.program, 'uShadowBand'), Math.max(40, 2.2 * r));
+    // The cast shadow fades over a wide band (a few × the roll height) so it
+    // reads as a soft gradient under the curl rather than a defined stripe.
+    gl.uniform1f(gl.getUniformLocation(this.program, 'uShadowBand'), Math.max(70, 3.0 * r));
     gl.uniform1i(gl.getUniformLocation(this.program, 'uHasBack'), this.hasBack ? 1 : 0);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.frontTex);
