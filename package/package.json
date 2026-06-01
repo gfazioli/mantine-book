@@ -43,7 +43,7 @@
   },
   "repository": "https://github.com/gfazioli/mantine-book.git",
   "dependencies": {
-    "html-to-image": "^1.11.13"
+    "@zumer/snapdom": "^2.12.2"
   },
   "peerDependencies": {
     "@mantine/core": ">=9.0.0",

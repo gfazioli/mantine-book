@@ -1559,7 +1559,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@gfazioli/mantine-book@workspace:package"
   dependencies:
-    html-to-image: "npm:^1.11.13"
+    "@zumer/snapdom": "npm:^2.12.2"
   peerDependencies:
     "@mantine/core": ">=9.0.0"
     "@mantine/hooks": ">=9.0.0"
@@ -4377,6 +4377,13 @@ __metadata:
   version: 1.1.1
   resolution: "@webcontainer/env@npm:1.1.1"
   checksum: 10c0/bc64114ffa7ee92f4985cc2bdd5e27f6f31d892b9aa5cde68eaf93df02d13ee6edf13faeebdd701464183b6f8f9c47c14975958cdd6fc20e7356ad32f6ee39e7
+  languageName: node
+  linkType: hard
+
+"@zumer/snapdom@npm:^2.12.2":
+  version: 2.12.2
+  resolution: "@zumer/snapdom@npm:2.12.2"
+  checksum: 10c0/169ae388843a44ef2d786483195602bd192199427c12507bca6f460823ce3ad26a3a97c6f249254856064894feb5d82a503bb062fc470dd0a14f7961d1845db7
   languageName: node
   linkType: hard
 
@@ -7430,13 +7437,6 @@ __metadata:
   version: 3.3.1
   resolution: "html-tags@npm:3.3.1"
   checksum: 10c0/680165e12baa51bad7397452d247dbcc5a5c29dac0e6754b1187eee3bf26f514bc1907a431dd2f7eb56207611ae595ee76a0acc8eaa0d931e72c791dd6463d79
-  languageName: node
-  linkType: hard
-
-"html-to-image@npm:^1.11.13":
-  version: 1.11.13
-  resolution: "html-to-image@npm:1.11.13"
-  checksum: 10c0/03bd7192d87b99499e37ff12a8e2b41ddce4cf8e33a93dfadff18df0f213434c7f1ba8328db2158f4805da07b7aec3c90aec3152908281153217e86784218b10
   languageName: node
   linkType: hard
 
