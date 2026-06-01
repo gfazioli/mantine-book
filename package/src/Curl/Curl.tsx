@@ -61,6 +61,12 @@ export interface CurlBaseProps {
   /** Background shown in the area uncovered by the curl. @default same as pageBackground */
   revealBackground?: MantineColor | string;
 
+  /**
+   * Curl radius in px for `variant="rounded"` — smaller wraps tighter and turns
+   * the page sooner; larger is a gentler, looser curl. @default ~0.32 × width
+   */
+  curlRadius?: number;
+
   /** Disable the drag interaction entirely (resting only). @default false */
   disabled?: boolean;
 
@@ -191,6 +197,7 @@ export const Curl = factory<CurlFactory>((_props) => {
     shadowColor: _sc,
     pageBackground: _pb,
     revealBackground: _rb,
+    curlRadius,
     disabled,
     flippingTime,
     flipThreshold,
@@ -314,6 +321,8 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   // In rounded mode the WebGL cone replaces the DOM flap while folding.
   const webglActive = rounded && folding;
+  // Curl radius for the WebGL wrap; default lets a full drag turn the page.
+  const radius = curlRadius ?? Math.round(W * 0.32);
 
   /* --- Shadows -------------------------------------------------- */
 
@@ -431,6 +440,7 @@ export const Curl = factory<CurlFactory>((_props) => {
             active={webglActive}
             fold={fold}
             flipped={flipped}
+            curlRadius={radius}
             frontContent={restFaceNode}
             backContent={liftFaceNode}
             onUnavailable={() => setWebglFailed(true)}

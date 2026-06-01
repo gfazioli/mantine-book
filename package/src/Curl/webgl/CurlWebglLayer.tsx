@@ -14,14 +14,14 @@ function renderFold(
   renderer: CurlGlRenderer,
   fold: ReflectionFold | null,
   flipped: boolean,
-  width: number
+  width: number,
+  radius: number
 ): void {
   if (!fold) {
     return;
   }
   const nx = -fold.creaseDir.y;
   const ny = fold.creaseDir.x;
-  const radius = width * 0.5;
   const sheetLeft = flipped ? -width : 0;
   renderer.render(fold.creaseMid.x, fold.creaseMid.y, nx, ny, radius, sheetLeft);
 }
@@ -37,6 +37,8 @@ export interface CurlWebglLayerProps {
   fold: ReflectionFold | null;
   /** Which side the sheet rests on (false = right, true = left). */
   flipped: boolean;
+  /** Curl radius in px (smaller = tighter wrap / turns sooner). */
+  curlRadius: number;
   /** Page background painted behind each captured face. */
   pageBackground?: string;
   /** Front / back face content — rendered off-screen only as snapshot sources. */
@@ -59,6 +61,7 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
     active,
     fold,
     flipped,
+    curlRadius,
     pageBackground,
     frontContent,
     backContent,
@@ -77,6 +80,8 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
   foldRef.current = fold;
   const flippedRef = useRef(flipped);
   flippedRef.current = flipped;
+  const curlRadiusRef = useRef(curlRadius);
+  curlRadiusRef.current = curlRadius;
 
   const hasBack = backContent != null;
 
@@ -120,7 +125,13 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
         }
       }
       capturedRef.current = true;
-      renderFold(rendererRef.current, foldRef.current, flippedRef.current, width);
+      renderFold(
+        rendererRef.current,
+        foldRef.current,
+        flippedRef.current,
+        width,
+        curlRadiusRef.current
+      );
     })();
 
     return () => {
@@ -137,9 +148,9 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
   useEffect(() => {
     const renderer = rendererRef.current;
     if (renderer && active && capturedRef.current && fold) {
-      renderFold(renderer, fold, flipped, width);
+      renderFold(renderer, fold, flipped, width, curlRadius);
     }
-  }, [active, fold, flipped, width]);
+  }, [active, fold, flipped, width, curlRadius]);
 
   const captureStyle: CSSProperties = {
     position: 'absolute',

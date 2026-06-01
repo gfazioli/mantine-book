@@ -95,6 +95,15 @@ export const configurator: MantineDemo = {
       step: 0.1,
     },
     {
+      type: 'number',
+      prop: 'curlRadius',
+      initialValue: 90,
+      libraryValue: 96,
+      min: 30,
+      max: 260,
+      step: 10,
+    },
+    {
       type: 'segmented',
       prop: 'variant',
       initialValue: 'rounded',
