@@ -28,7 +28,7 @@ function renderFold(
   // a constant radius can't reach the spine and snaps to the flat DOM face on
   // release; shrinking r flattens the curl as it turns over, so it reaches like
   // the flat fold and the WebGL→DOM handoff is seamless (r→0 == the flat fold).
-  const r = Math.max(8, maxRadius * (1 - fold.progress / 100));
+  const r = Math.max(2, maxRadius * (1 - fold.progress / 100));
   renderer.render(fold.creaseMid.x, fold.creaseMid.y, nx, ny, r, sheetLeft);
 }
 
