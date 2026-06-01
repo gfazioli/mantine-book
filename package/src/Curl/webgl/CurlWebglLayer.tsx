@@ -15,7 +15,8 @@ function renderFold(
   fold: ReflectionFold | null,
   flipped: boolean,
   width: number,
-  maxRadius: number
+  maxRadius: number,
+  shadowOpacity: number
 ): void {
   if (!fold) {
     return;
@@ -29,7 +30,7 @@ function renderFold(
   // release; shrinking r flattens the curl as it turns over, so it reaches like
   // the flat fold and the WebGL→DOM handoff is seamless (r→0 == the flat fold).
   const r = Math.max(2, maxRadius * (1 - fold.progress / 100));
-  renderer.render(fold.creaseMid.x, fold.creaseMid.y, nx, ny, r, sheetLeft);
+  renderer.render(fold.creaseMid.x, fold.creaseMid.y, nx, ny, r, sheetLeft, shadowOpacity);
 }
 
 export interface CurlWebglLayerProps {
@@ -45,6 +46,8 @@ export interface CurlWebglLayerProps {
   flipped: boolean;
   /** Curl radius in px (smaller = tighter wrap / turns sooner). */
   curlRadius: number;
+  /** Cast-shadow opacity (0–1) the lifted curl drops on the flat page. */
+  shadowOpacity: number;
   /** Page background painted behind each captured face. */
   pageBackground?: string;
   /** Front / back face content — rendered off-screen only as snapshot sources. */
@@ -68,6 +71,7 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
     fold,
     flipped,
     curlRadius,
+    shadowOpacity,
     pageBackground,
     frontContent,
     backContent,
@@ -88,6 +92,8 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
   flippedRef.current = flipped;
   const curlRadiusRef = useRef(curlRadius);
   curlRadiusRef.current = curlRadius;
+  const shadowOpacityRef = useRef(shadowOpacity);
+  shadowOpacityRef.current = shadowOpacity;
 
   const hasBack = backContent != null;
 
@@ -136,7 +142,8 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
         foldRef.current,
         flippedRef.current,
         width,
-        curlRadiusRef.current
+        curlRadiusRef.current,
+        shadowOpacityRef.current
       );
     })();
 
@@ -154,9 +161,9 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
   useEffect(() => {
     const renderer = rendererRef.current;
     if (renderer && active && capturedRef.current && fold) {
-      renderFold(renderer, fold, flipped, width, curlRadius);
+      renderFold(renderer, fold, flipped, width, curlRadius, shadowOpacity);
     }
-  }, [active, fold, flipped, width, curlRadius]);
+  }, [active, fold, flipped, width, curlRadius, shadowOpacity]);
 
   const captureStyle: CSSProperties = {
     position: 'absolute',
