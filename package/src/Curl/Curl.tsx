@@ -12,19 +12,10 @@ import {
   useProps,
   useStyles,
 } from '@mantine/core';
-import React, { useCallback, useId, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useId, useMemo, useRef } from 'react';
 import { CurlFace, type CurlFaceAlign, type CurlFaceProps } from '../CurlFace/CurlFace';
-import { useFlipAnimator } from '../flip/animator';
-import { type DragSummary, useDragController } from '../flip/drag';
-import {
-  clampReflectionTarget,
-  computeFoldShadow,
-  computeReflectionFold,
-  type Point,
-  pointsToCssPolygon,
-  type ReflectionFold,
-  shouldCompleteFold,
-} from '../flip/geometry';
+import { computeFoldShadow, type Point, pointsToCssPolygon } from '../flip/geometry';
+import { useCurlController } from '../flip/useCurlController';
 import classes from './Curl.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -214,9 +205,6 @@ export const Curl = factory<CurlFactory>((_props) => {
   // url() reference, so strip it.
   const shadowGradientId = `curl-shadow-${useId().replace(/:/g, '')}`;
 
-  // Unique gradient ids per instance (multiple Curls / a future Book must
-  // not share SVG defs ids).
-
   const getStyles = useStyles<CurlFactory>({
     name: 'Curl',
     props,
@@ -236,39 +224,27 @@ export const Curl = factory<CurlFactory>((_props) => {
   const frontFlex = useMemo(() => alignToFlex(faces.front?.align ?? align), [faces.front, align]);
   const backFlex = useMemo(() => alignToFlex(faces.back?.align ?? align), [faces.back, align]);
 
-  /* --- Fold state ----------------------------------------------- */
+  /* --- Fold controller (single source of truth) ----------------- */
 
-  // Unified REFLECTION fold: the grabbed point on the free edge folds onto the
-  // pointer; the crease is the perpendicular bisector of grab→pointer and the
-  // lifted flap is reflected across it. ONE path covers every grab point and
-  // every drag direction (corner, mid-edge, up/down) — no corners/zones/modes.
-  // See RESEARCH-page-curl.md. `flipped` only swaps which face rests vs lifts.
-  const [view, setView] = useState<{ fold: ReflectionFold | null; flipped: boolean }>({
-    fold: null,
-    flipped: false,
-  });
-  const fold = view.fold;
-  const flipped = view.flipped;
-
-  const flippedRef = useRef(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const foldRef = useRef<ReflectionFold | null>(null);
-  // The grabbed point on the free edge (fold anchor) and the last clamped
-  // target — the release settle animates the target from here.
-  const anchorRef = useRef<Point>({ x: W, y: 0 });
-  const lastTargetRef = useRef<Point | null>(null);
-  const animator = useFlipAnimator();
 
-  const setBoth = useCallback((f: ReflectionFold | null, flip: boolean) => {
-    foldRef.current = f;
-    flippedRef.current = flip;
-    setView({ fold: f, flipped: flip });
-  }, []);
-
-  const onFoldRef = useRef(onFold);
-  onFoldRef.current = onFold;
-  const onFlipRef = useRef(onFlip);
-  onFlipRef.current = onFlip;
+  // Owns the grab → drag → release-settle state machine (reflection fold). The
+  // DOM renderer below and the future WebGL renderer both consume this one
+  // FoldView, so they can never diverge. `flipped` only swaps which face
+  // rests vs lifts; see RESEARCH-page-curl.md for the model.
+  const { fold, flipped, folding, dragHandlers } = useCurlController({
+    width: W,
+    height: H,
+    threshold,
+    flippingTime: flippingTime ?? 600,
+    swipeDistance,
+    swipeTimeThreshold,
+    mobileScrollSupport,
+    disabled,
+    rootRef,
+    onFold,
+    onFlip,
+  });
 
   /* --- Forward parent ref --------------------------------------- */
 
@@ -284,120 +260,6 @@ export const Curl = factory<CurlFactory>((_props) => {
     [ref]
   );
 
-  /* --- Pointer → page-local mapping ----------------------------- */
-
-  // Page-local coords: x = 0 is the spine (centre seam of the 2W play-zone),
-  // x = W is the free right edge; y ∈ [0, H]. The sheet rests in the right half.
-  const getLocalPoint = useCallback(
-    (clientX: number, clientY: number): Point => {
-      const rect = rootRef.current?.getBoundingClientRect();
-      const left = rect?.left ?? 0;
-      const top = rect?.top ?? 0;
-      return { x: clientX - left - W, y: clientY - top };
-    },
-    [W]
-  );
-
-  /* --- Drag wiring ---------------------------------------------- */
-
-  const handleStart = useCallback(
-    (local: Point) => {
-      animator.stop();
-      // Anchor = the grabbed point, snapped to the CURRENT free edge: the right
-      // edge (x = +W) at rest, or the left edge (x = −W) once flipped (the sheet
-      // then rests in the left half). ANY point along that edge is valid.
-      anchorRef.current = { x: flippedRef.current ? -W : W, y: Math.max(0, Math.min(H, local.y)) };
-      lastTargetRef.current = null;
-      // Start flat; the first move creates the fold (no pop on grab).
-      setBoth(null, flippedRef.current);
-    },
-    [W, H, animator, setBoth]
-  );
-
-  const handleMove = useCallback(
-    (local: Point) => {
-      const anchor = anchorRef.current;
-      const target = clampReflectionTarget(anchor, local, W, H);
-      lastTargetRef.current = target;
-      const f = computeReflectionFold(anchor, target, W, H);
-      setBoth(f, flippedRef.current);
-      if (f) {
-        onFoldRef.current?.({ progress: f.progress, phase: 'move' });
-      }
-    },
-    [W, H, setBoth]
-  );
-
-  const handleRelease = useCallback(
-    (summary: DragSummary) => {
-      const current = foldRef.current;
-      const wasFlipped = flippedRef.current;
-      const anchor = anchorRef.current;
-      const from = lastTargetRef.current;
-
-      // A click (no real drag) just settles back to the current rest state.
-      if (summary.kind === 'click' || !current || !from) {
-        setBoth(null, wasFlipped);
-        onFlipRef.current?.({ flipped: wasFlipped });
-        return;
-      }
-
-      // Complete when dragged past the threshold, or on a fast swipe toward the
-      // spine (side-aware — see shouldCompleteFold). Complete → sweep to the
-      // OPPOSITE edge (full turn onto the other half); snap-back → return to the
-      // anchor edge (rest, no fold).
-      const complete = shouldCompleteFold(
-        current.progress,
-        threshold,
-        summary.kind === 'swipe',
-        summary.velocity.x,
-        anchor.x
-      );
-      const to: Point = complete ? { x: -anchor.x, y: anchor.y } : { x: anchor.x, y: anchor.y };
-
-      animator.start({
-        duration: flippingTime ?? 600,
-        onProgress: (eased) => {
-          const t: Point = {
-            x: from.x + (to.x - from.x) * eased,
-            y: from.y + (to.y - from.y) * eased,
-          };
-          const f = computeReflectionFold(anchor, t, W, H);
-          setBoth(f, wasFlipped);
-          if (f) {
-            onFoldRef.current?.({ progress: f.progress, phase: 'settle' });
-          }
-        },
-        onComplete: () => {
-          // A completed fold toggles the resting side; otherwise snap back.
-          const nowFlipped = complete ? !wasFlipped : wasFlipped;
-          setBoth(null, nowFlipped);
-          onFlipRef.current?.({ flipped: nowFlipped });
-        },
-      });
-    },
-    [W, H, threshold, flippingTime, animator, setBoth]
-  );
-
-  const drag = useDragController({
-    swipeDistance,
-    swipeTimeThreshold,
-    mobileScrollSupport,
-    getLocalPoint,
-    onStart: handleStart,
-    onMove: handleMove,
-    onRelease: handleRelease,
-  });
-
-  const dragHandlers = disabled
-    ? {}
-    : {
-        onPointerDown: drag.onPointerDown,
-        onPointerMove: drag.onPointerMove,
-        onPointerUp: drag.onPointerUp,
-        onPointerCancel: drag.onPointerCancel,
-      };
-
   /* --- Face content (rendered once, React-owned) ---------------- */
 
   // No per-face mirror: the reflection matrix (det −1) mirrors the lifted flap
@@ -410,8 +272,6 @@ export const Curl = factory<CurlFactory>((_props) => {
   const liftFaceNode = flipped ? frontNode : backNode;
 
   /* --- Derived per-frame geometry ------------------------------- */
-
-  const folding = fold !== null;
 
   // The resting sheet (and the fold layers) sit on the current side: the right
   // half at rest, the left half once flipped. Geometry from `computeReflectionFold`
