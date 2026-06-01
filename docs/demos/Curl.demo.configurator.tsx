@@ -99,9 +99,9 @@ export const configurator: MantineDemo = {
       prop: 'curlRadius',
       initialValue: 90,
       libraryValue: 96,
-      min: 30,
+      min: 0,
       max: 260,
-      step: 10,
+      step: 1,
     },
     {
       type: 'segmented',
