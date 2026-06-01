@@ -39,18 +39,22 @@ uniform vec3 uLightDir;
 out vec4 fragColor;
 void main() {
   vec3 N = normalize(vNormal);
+  // Pick the face by which way the surface actually faces the viewer (robust
+  // through the 3D deform + rotation, unlike gl_FrontFacing/winding): the part
+  // still facing us shows the front; the wrapped-over part (facing away) shows
+  // the back, mirrored so it reads correctly.
+  bool front = N.z >= 0.0;
+  vec3 Nl = front ? N : -N;                // lighting normal always toward viewer
   vec4 base;
-  if (gl_FrontFacing) {
+  if (front) {
     base = texture(uFront, vUv);
   } else {
-    // The wrapped-over part shows the back face, mirrored to read correctly.
     base = uHasBack ? texture(uBack, vec2(1.0 - vUv.x, vUv.y)) : vec4(1.0, 1.0, 1.0, 1.0);
-    N = -N;
   }
   vec3 L = normalize(uLightDir);
   vec3 V = vec3(0.0, 0.0, 1.0);            // orthographic view, looking at +z
-  float diff = max(dot(N, L), 0.0);
-  vec3 R = reflect(-L, N);
+  float diff = max(dot(Nl, L), 0.0);
+  vec3 R = reflect(-L, Nl);
   float spec = pow(max(dot(R, V), 0.0), 48.0);
   float light = 0.62 + 0.42 * diff + 0.30 * spec;
   fragColor = vec4(base.rgb * clamp(light, 0.0, 1.5), base.a);

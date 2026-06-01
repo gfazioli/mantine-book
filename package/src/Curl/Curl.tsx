@@ -433,8 +433,8 @@ export const Curl = factory<CurlFactory>((_props) => {
             height={H}
             active={webglActive}
             progress={roundedProgress}
-            frontContent={liftFaceNode}
-            backContent={restFaceNode}
+            frontContent={restFaceNode}
+            backContent={liftFaceNode}
             onUnavailable={() => setWebglFailed(true)}
           />
         </Suspense>
