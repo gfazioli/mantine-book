@@ -14,10 +14,12 @@ const VERTEX_SRC = `#version 300 es
 in vec3 aPos;      // play-zone pixels: x ∈ [0, 2W], y ∈ [0, H], z = depth px
 in vec3 aNormal;
 in vec2 aUv;
-uniform vec2 uResolution;  // (2W, H)
+in float aDist;    // signed distance from the crease (px): <0 flat, >0 wrapped
+uniform vec2 uResolution;  // (2W, H + 2·pad)
 uniform float uDepth;      // depth range used to normalise z into clip space
 out vec3 vNormal;
 out vec2 vUv;
+out float vDist;
 void main() {
   vec2 p = aPos.xy / uResolution;          // 0..1
   vec2 clip = vec2(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0);
@@ -26,16 +28,20 @@ void main() {
   gl_Position = vec4(clip, z, 1.0);
   vNormal = aNormal;
   vUv = aUv;
+  vDist = aDist;
 }`;
 
 const FRAGMENT_SRC = `#version 300 es
 precision highp float;
 in vec3 vNormal;
 in vec2 vUv;
+in float vDist;
 uniform sampler2D uFront;
 uniform sampler2D uBack;
 uniform bool uHasBack;
 uniform vec3 uLightDir;
+uniform float uShadow;      // cast-shadow strength (0–1, = shadowOpacity)
+uniform float uShadowBand;  // px over which the cast shadow fades from the crease
 out vec4 fragColor;
 void main() {
   vec3 N = normalize(vNormal);
@@ -55,9 +61,18 @@ void main() {
   vec3 V = vec3(0.0, 0.0, 1.0);            // orthographic view, looking at +z
   float diff = max(dot(Nl, L), 0.0);
   vec3 R = reflect(-L, Nl);
-  float spec = pow(max(dot(R, V), 0.0), 48.0);
-  float light = 0.62 + 0.42 * diff + 0.30 * spec;
-  fragColor = vec4(base.rgb * clamp(light, 0.0, 1.5), base.a);
+  float spec = pow(max(dot(R, V), 0.0), 80.0);  // tight glossy ridge at the roll apex
+  float light = 0.58 + 0.42 * diff;
+  if (!front) {
+    light *= 0.82;                         // the curled-under back reads a touch darker
+  }
+  vec3 rgb = base.rgb * clamp(light, 0.0, 1.3) + vec3(spec * 0.6); // additive specular highlight
+  // Cast shadow: the lifted curl darkens the flat page (vDist < 0) near the crease.
+  if (vDist < 0.0 && uShadow > 0.0) {
+    float t = clamp(1.0 + vDist / uShadowBand, 0.0, 1.0);
+    rgb *= 1.0 - uShadow * t * t;
+  }
+  fragColor = vec4(rgb, base.a);
 }`;
 
 type TexImageSource = HTMLImageElement | HTMLCanvasElement | ImageBitmap;
@@ -102,6 +117,7 @@ export class CurlGlRenderer {
   private vao: WebGLVertexArrayObject;
   private posBuf: WebGLBuffer;
   private normBuf: WebGLBuffer;
+  private distBuf: WebGLBuffer;
   private frontTex: WebGLTexture;
   private backTex: WebGLTexture;
   private hasBack = false;
@@ -112,6 +128,7 @@ export class CurlGlRenderer {
   private readonly indices: Uint16Array;
   private readonly scaledPos: Float32Array; // play-zone px
   private readonly normals: Float32Array;
+  private readonly dist: Float32Array; // signed distance from crease, per vertex
 
   private W = 1;
   private H = 1;
@@ -136,6 +153,7 @@ export class CurlGlRenderer {
     this.indices = mesh.indices;
     this.scaledPos = new Float32Array(mesh.vertexCount * 3);
     this.normals = new Float32Array(mesh.vertexCount * 3);
+    this.dist = new Float32Array(mesh.vertexCount);
 
     const vs = compile(gl, gl.VERTEX_SHADER, VERTEX_SRC);
     const fs = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SRC);
@@ -172,6 +190,13 @@ export class CurlGlRenderer {
     gl.bufferData(gl.ARRAY_BUFFER, this.texcoords, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(aUv);
     gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 0, 0);
+
+    const aDist = gl.getAttribLocation(program, 'aDist');
+    this.distBuf = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.distBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.dist.byteLength, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(aDist);
+    gl.vertexAttribPointer(aDist, 1, gl.FLOAT, false, 0, 0);
 
     const idxBuf = gl.createBuffer()!;
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
@@ -273,6 +298,7 @@ export class CurlGlRenderer {
    *                   that wraps; the spine side stays flat.
    * @param radius     curl radius in px (larger = gentler wrap)
    * @param sheetLeft  page x of the sheet's spine edge: 0 at rest, −W when flipped
+   * @param shadowStrength 0–1 cast-shadow opacity the curl drops on the flat page
    */
   render(
     creaseMidX: number,
@@ -280,7 +306,8 @@ export class CurlGlRenderer {
     nx: number,
     ny: number,
     radius: number,
-    sheetLeft: number
+    sheetLeft: number,
+    shadowStrength: number
   ): void {
     const gl = this.gl;
     const { W, H, padY } = this;
@@ -293,6 +320,7 @@ export class CurlGlRenderer {
       const px = sheetLeft + tc[i * 2] * W; // page x (spine→free edge)
       const py = tc[i * 2 + 1] * H; // page y
       const d = (px - creaseMidX) * nx + (py - creaseMidY) * ny; // signed dist from crease
+      this.dist[i] = d;
       let wx = px;
       let wy = py;
       let wz = 0;
@@ -322,6 +350,8 @@ export class CurlGlRenderer {
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, sp);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.normBuf);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.normals);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.distBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.dist);
 
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -331,6 +361,9 @@ export class CurlGlRenderer {
     gl.uniform2f(gl.getUniformLocation(this.program, 'uResolution'), 2 * W, H + 2 * padY);
     gl.uniform1f(gl.getUniformLocation(this.program, 'uDepth'), depthScale * 2);
     gl.uniform3f(gl.getUniformLocation(this.program, 'uLightDir'), -0.3, -0.4, 0.85);
+    gl.uniform1f(gl.getUniformLocation(this.program, 'uShadow'), shadowStrength);
+    // The cast shadow fades over roughly the curl's overhang (≈ the roll height).
+    gl.uniform1f(gl.getUniformLocation(this.program, 'uShadowBand'), Math.max(40, 2.2 * r));
     gl.uniform1i(gl.getUniformLocation(this.program, 'uHasBack'), this.hasBack ? 1 : 0);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.frontTex);
@@ -353,6 +386,7 @@ export class CurlGlRenderer {
     gl.deleteVertexArray(this.vao);
     gl.deleteBuffer(this.posBuf);
     gl.deleteBuffer(this.normBuf);
+    gl.deleteBuffer(this.distBuf);
     gl.deleteTexture(this.frontTex);
     gl.deleteTexture(this.backTex);
     gl.deleteProgram(this.program);

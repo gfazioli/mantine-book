@@ -441,6 +441,7 @@ export const Curl = factory<CurlFactory>((_props) => {
             fold={fold}
             flipped={flipped}
             curlRadius={radius}
+            shadowOpacity={shadowOp}
             frontContent={restFaceNode}
             backContent={liftFaceNode}
             onUnavailable={() => setWebglFailed(true)}
