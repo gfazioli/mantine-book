@@ -15,7 +15,7 @@ function renderFold(
   fold: ReflectionFold | null,
   flipped: boolean,
   width: number,
-  radius: number
+  maxRadius: number
 ): void {
   if (!fold) {
     return;
@@ -23,7 +23,13 @@ function renderFold(
   const nx = -fold.creaseDir.y;
   const ny = fold.creaseDir.x;
   const sheetLeft = flipped ? -width : 0;
-  renderer.render(fold.creaseMid.x, fold.creaseMid.y, nx, ny, radius, sheetLeft);
+  // Adaptive radius: full (rounded) at the start of the peel, shrinking toward
+  // ~0 as the fold completes. Wrapping a cylinder shortens the curl by ~π·r, so
+  // a constant radius can't reach the spine and snaps to the flat DOM face on
+  // release; shrinking r flattens the curl as it turns over, so it reaches like
+  // the flat fold and the WebGL→DOM handoff is seamless (r→0 == the flat fold).
+  const r = Math.max(8, maxRadius * (1 - fold.progress / 100));
+  renderer.render(fold.creaseMid.x, fold.creaseMid.y, nx, ny, r, sheetLeft);
 }
 
 export interface CurlWebglLayerProps {
