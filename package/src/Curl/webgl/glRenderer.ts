@@ -68,12 +68,13 @@ void main() {
   }
   vec3 rgb = base.rgb * clamp(light, 0.0, 1.3) + vec3(spec * 0.6); // additive specular highlight
   // Cast shadow: a soft blob the lifted curl drops on the flat page (vDist < 0).
-  // It is ZERO at the crease itself (so there's no brightness step / hard line on
-  // the fold), rises just inside under the curl's overhang, then fades out — a
-  // smooth bump (0 at the crease and at the band edge, peak in between).
+  // ZERO at the crease (no brightness step / hard line on the fold), it ramps up
+  // quickly just inside — right under the curl's overhang, where it's visible —
+  // then fades out over the band. Peaks at ~uShadow so the slider has a clear,
+  // responsive effect (matching flat mode) without re-introducing a line.
   if (vDist < 0.0 && uShadow > 0.0) {
     float t = clamp(-vDist / uShadowBand, 0.0, 1.0);   // 0 at the crease → 1 at the band edge
-    float shade = uShadow * 0.5 * (4.0 * t * (1.0 - t));
+    float shade = uShadow * 0.7 * smoothstep(0.0, 0.12, t) * (1.0 - smoothstep(0.12, 1.0, t));
     rgb *= 1.0 - shade;
   }
   fragColor = vec4(rgb, base.a);
