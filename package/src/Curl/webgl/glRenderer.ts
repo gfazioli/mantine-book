@@ -184,7 +184,9 @@ export class CurlGlRenderer {
     this.frontTex = makeTexture(gl);
     this.backTex = makeTexture(gl);
 
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    // No Y-flip: our mesh has v=0 at the top, matching the image's top row, so
+    // flipping would render the captured face upside-down.
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -269,8 +271,8 @@ export class CurlGlRenderer {
     const gl = this.gl;
     const { W, H, padY } = this;
     const { theta: rawTheta, apex, rotation } = coneParams(progress);
-    // Gentler wrap: the full π/2 cone hugs the virtual cylinder too tightly.
-    const theta = rawTheta * 0.6;
+    // Gentler wrap: the full π/2 cone hugs the virtual cylinder far too tightly.
+    const theta = rawTheta * 0.4;
 
     deformConeMesh(this.unitPos, this.texcoords, theta, apex);
 
