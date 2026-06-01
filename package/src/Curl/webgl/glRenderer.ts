@@ -118,7 +118,7 @@ export class CurlGlRenderer {
   /** Vertical headroom (px each side) so the curl can extend past the page. */
   private padY = 0;
 
-  constructor(canvas: HTMLCanvasElement, cols = 40, rows = 26) {
+  constructor(canvas: HTMLCanvasElement, cols = 56, rows = 40) {
     const gl = canvas.getContext('webgl2', {
       alpha: true,
       premultipliedAlpha: true,
