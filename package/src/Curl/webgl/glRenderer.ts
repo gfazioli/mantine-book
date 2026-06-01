@@ -67,12 +67,13 @@ void main() {
     light *= 0.82;                         // the curled-under back reads a touch darker
   }
   vec3 rgb = base.rgb * clamp(light, 0.0, 1.3) + vec3(spec * 0.6); // additive specular highlight
-  // Cast shadow: a soft darkening the lifted curl drops on the flat page
-  // (vDist < 0) near the crease. A smoothstep falloff over a wide band keeps it
-  // a gentle gradient rather than a hard-edged stripe.
+  // Cast shadow: a soft blob the lifted curl drops on the flat page (vDist < 0).
+  // It is ZERO at the crease itself (so there's no brightness step / hard line on
+  // the fold), rises just inside under the curl's overhang, then fades out — a
+  // smooth bump (0 at the crease and at the band edge, peak in between).
   if (vDist < 0.0 && uShadow > 0.0) {
     float t = clamp(-vDist / uShadowBand, 0.0, 1.0);   // 0 at the crease → 1 at the band edge
-    float shade = uShadow * 0.55 * (1.0 - smoothstep(0.0, 1.0, t));
+    float shade = uShadow * 0.5 * (4.0 * t * (1.0 - t));
     rgb *= 1.0 - shade;
   }
   fragColor = vec4(rgb, base.a);
