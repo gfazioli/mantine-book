@@ -12,11 +12,17 @@ import {
   useProps,
   useStyles,
 } from '@mantine/core';
-import React, { useCallback, useId, useMemo, useRef } from 'react';
+import React, { lazy, Suspense, useCallback, useId, useMemo, useRef, useState } from 'react';
 import { CurlFace, type CurlFaceAlign, type CurlFaceProps } from '../CurlFace/CurlFace';
 import { computeFoldShadow, type Point, pointsToCssPolygon } from '../flip/geometry';
 import { useCurlController } from '../flip/useCurlController';
 import classes from './Curl.module.css';
+
+// Lazy so the WebGL renderer + html-to-image never enter the SSR / initial
+// bundle — only loaded when a `variant="rounded"` curl actually mounts.
+const CurlWebglLayer = lazy(() =>
+  import('./webgl/CurlWebglLayer').then((m) => ({ default: m.CurlWebglLayer }))
+);
 
 /* ------------------------------------------------------------------ */
 /*  Public API                                                         */
@@ -90,6 +96,12 @@ export type CurlFactory = Factory<{
   ref: HTMLDivElement;
   stylesNames: CurlStylesNames;
   vars: CurlCssVariables;
+  /**
+   * Curl renderer. `'flat'` is the DOM reflection fold (default, fully
+   * interactive at rest, the universal fallback); `'rounded'` is the WebGL cone
+   * curl (the faces are a static snapshot during the curl, live at rest).
+   */
+  variant: 'flat' | 'rounded';
   staticComponents: {
     Front: typeof CurlFace;
     Back: typeof CurlFace;
@@ -99,6 +111,7 @@ export type CurlFactory = Factory<{
 const defaultProps: Partial<CurlProps> = {
   width: 300,
   height: 600,
+  variant: 'flat',
   shadowOpacity: 0.5,
   shadowColor: 'dark.9',
   pageBackground: 'white',
@@ -173,6 +186,7 @@ export const Curl = factory<CurlFactory>((_props) => {
     width,
     height,
     align,
+    variant,
     shadowOpacity,
     shadowColor: _sc,
     pageBackground: _pb,
@@ -199,6 +213,11 @@ export const Curl = factory<CurlFactory>((_props) => {
   const W = width ?? 300;
   const H = height ?? 600;
   const threshold = flipThreshold ?? 50;
+
+  // `rounded` opts into the WebGL cone curl; on any WebGL/snapshot failure we
+  // latch back to the flat DOM fold for the rest of the session.
+  const [webglFailed, setWebglFailed] = useState(false);
+  const rounded = variant === 'rounded' && !webglFailed;
 
   // Unique SVG gradient id per instance (multiple Curls / a future Book must
   // not share `url(#id)` defs). useId() contains ':' which is invalid in a CSS
@@ -293,6 +312,10 @@ export const Curl = factory<CurlFactory>((_props) => {
     : undefined;
   const curlVisible = folding && flapClip !== null;
 
+  // In rounded mode the WebGL cone replaces the DOM flap while folding.
+  const webglActive = rounded && folding;
+  const roundedProgress = fold?.progress ?? 0;
+
   /* --- Shadows -------------------------------------------------- */
 
   // Two contributions, both derived from the crease (creaseMid + creaseDir):
@@ -328,7 +351,12 @@ export const Curl = factory<CurlFactory>((_props) => {
         {...getStyles('restSheet', {
           style: {
             left: restLeft,
-            ...(folding && flatClip ? { clipPath: flatClip, WebkitClipPath: flatClip } : null),
+            // While the WebGL cone is drawing, it shows the whole page itself.
+            ...(webglActive
+              ? { display: 'none' }
+              : folding && flatClip
+                ? { clipPath: flatClip, WebkitClipPath: flatClip }
+                : null),
           },
         })}
       >
@@ -338,32 +366,38 @@ export const Curl = factory<CurlFactory>((_props) => {
       {/* The lifting flap (the opposite face), clipped to the flap region and
           reflected across the crease (the det −1 matrix also mirrors it to show
           the back). Sits on the resting side; overflow stays visible so the
-          reflected flap can sweep across the spine to the other half. */}
-      <div
-        {...getStyles('curlSheet', {
-          style: curlVisible
-            ? {
-                left: restLeft,
-                transformOrigin: '0 0',
-                transform: flapMatrix,
-                clipPath: flapClip!,
-                WebkitClipPath: flapClip!,
-                filter: castShadow,
-              }
-            : { display: 'none' },
-        })}
-      >
-        {/* Pre-mirror the flap content so the det−1 reflection matrix composes
-            to a PROPER rotation: the back face reads correctly (just rotated
-            with the flap) instead of appearing mirror-reversed. */}
-        <div style={{ width: '100%', height: '100%', transform: 'scaleX(-1)' }}>{liftFaceNode}</div>
-      </div>
+          reflected flap can sweep across the spine to the other half. Skipped in
+          rounded mode, where the WebGL cone draws the lifting page instead. */}
+      {!rounded && (
+        <div
+          {...getStyles('curlSheet', {
+            style: curlVisible
+              ? {
+                  left: restLeft,
+                  transformOrigin: '0 0',
+                  transform: flapMatrix,
+                  clipPath: flapClip!,
+                  WebkitClipPath: flapClip!,
+                  filter: castShadow,
+                }
+              : { display: 'none' },
+          })}
+        >
+          {/* Pre-mirror the flap content so the det−1 reflection matrix composes
+              to a PROPER rotation: the back face reads correctly (just rotated
+              with the flap) instead of appearing mirror-reversed. */}
+          <div style={{ width: '100%', height: '100%', transform: 'scaleX(-1)' }}>
+            {liftFaceNode}
+          </div>
+        </div>
+      )}
 
       {/* Curl shading: a gradient over the reflected flap (dark at the crease →
           transparent at the free edge), painted in an SVG overlay that spans the
           whole play-zone (so page coords map as x + W). The cast halo is the
-          curlSheet's drop-shadow filter above. */}
-      {shadow && curlVisible && shadowPoints && (
+          curlSheet's drop-shadow filter above. Flat mode only — WebGL lights its
+          own cone. */}
+      {!rounded && shadow && curlVisible && shadowPoints && (
         <svg {...getStyles('shadowLayer')} width={W * 2} height={H} aria-hidden="true">
           <defs>
             <linearGradient
@@ -384,6 +418,24 @@ export const Curl = factory<CurlFactory>((_props) => {
           </defs>
           <polygon points={shadowPoints} fill={`url(#${shadowGradientId})`} />
         </svg>
+      )}
+
+      {/* WebGL cone curl (opt-in `variant="rounded"`). Lazy + client-only; the
+          live faces stay mounted as the restSheet above (interactive at rest)
+          and are snapshotted to textures during the curl. Falls back to the flat
+          DOM fold if WebGL is unavailable or a snapshot taints. */}
+      {rounded && (
+        <Suspense fallback={null}>
+          <CurlWebglLayer
+            width={W}
+            height={H}
+            active={webglActive}
+            progress={roundedProgress}
+            frontContent={restFaceNode}
+            backContent={liftFaceNode}
+            onUnavailable={() => setWebglFailed(true)}
+          />
+        </Suspense>
       )}
     </Box>
   );

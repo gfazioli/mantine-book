@@ -42,6 +42,9 @@
     "./styles.layer.css": "./dist/styles.layer.css"
   },
   "repository": "https://github.com/gfazioli/mantine-book.git",
+  "dependencies": {
+    "html-to-image": "^1.11.13"
+  },
   "peerDependencies": {
     "@mantine/core": ">=9.0.0",
     "@mantine/hooks": ">=9.0.0",

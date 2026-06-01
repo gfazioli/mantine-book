@@ -94,6 +94,13 @@ export const configurator: MantineDemo = {
       max: 1,
       step: 0.1,
     },
+    {
+      type: 'segmented',
+      prop: 'variant',
+      initialValue: 'rounded',
+      libraryValue: 'flat',
+      data: ['flat', 'rounded'],
+    },
     { type: 'boolean', prop: 'disabled', initialValue: false, libraryValue: false },
   ],
 };
