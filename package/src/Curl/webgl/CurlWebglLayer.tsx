@@ -69,7 +69,12 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
 
     let cancelled = false;
     (async () => {
-      const front = frontRef.current ? await captureFaceTexture(frontRef.current, dpr) : null;
+      // Resolve the page background (the CSS var) so the texture's opaque base
+      // matches the sheet colour instead of defaulting to white.
+      const bg = frontRef.current
+        ? getComputedStyle(frontRef.current).backgroundColor || '#ffffff'
+        : '#ffffff';
+      const front = frontRef.current ? await captureFaceTexture(frontRef.current, dpr, bg) : null;
       if (cancelled || !rendererRef.current) {
         return;
       }
@@ -79,7 +84,7 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
       }
       rendererRef.current.setFront(front);
       if (hasBack && backRef.current) {
-        const back = await captureFaceTexture(backRef.current, dpr);
+        const back = await captureFaceTexture(backRef.current, dpr, bg);
         if (!cancelled && rendererRef.current && back) {
           rendererRef.current.setBack(back);
         }
