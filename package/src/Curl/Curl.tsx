@@ -251,7 +251,7 @@ export const Curl = factory<CurlFactory>((_props) => {
   // DOM renderer below and the future WebGL renderer both consume this one
   // FoldView, so they can never diverge. `flipped` only swaps which face
   // rests vs lifts; see RESEARCH-page-curl.md for the model.
-  const { fold, flipped, folding, curlProgress, dragHandlers } = useCurlController({
+  const { fold, flipped, folding, dragHandlers } = useCurlController({
     width: W,
     height: H,
     threshold,
@@ -314,9 +314,6 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   // In rounded mode the WebGL cone replaces the DOM flap while folding.
   const webglActive = rounded && folding;
-  // Signed toward-spine curl amount (0 when dragging away) so the WebGL cone
-  // follows the drag direction rather than any horizontal motion.
-  const roundedProgress = curlProgress;
 
   /* --- Shadows -------------------------------------------------- */
 
@@ -432,7 +429,8 @@ export const Curl = factory<CurlFactory>((_props) => {
             width={W}
             height={H}
             active={webglActive}
-            progress={roundedProgress}
+            fold={fold}
+            flipped={flipped}
             frontContent={restFaceNode}
             backContent={liftFaceNode}
             onUnavailable={() => setWebglFailed(true)}

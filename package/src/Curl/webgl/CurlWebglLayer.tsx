@@ -1,8 +1,30 @@
 'use client';
 
 import React, { type CSSProperties, type ReactNode, useEffect, useRef } from 'react';
+import type { ReflectionFold } from '../../flip/geometry';
 import { CurlGlRenderer } from './glRenderer';
 import { captureFaceTexture } from './snapshot';
+
+/**
+ * Drive the renderer from a fold: the crease (midpoint + direction) becomes the
+ * wrap axis, so the curl follows the drag in any direction. `n` is the crease
+ * normal pointing toward the grabbed edge (= −dragDir = (−creaseDir.y, creaseDir.x)).
+ */
+function renderFold(
+  renderer: CurlGlRenderer,
+  fold: ReflectionFold | null,
+  flipped: boolean,
+  width: number
+): void {
+  if (!fold) {
+    return;
+  }
+  const nx = -fold.creaseDir.y;
+  const ny = fold.creaseDir.x;
+  const radius = width * 0.5;
+  const sheetLeft = flipped ? -width : 0;
+  renderer.render(fold.creaseMid.x, fold.creaseMid.y, nx, ny, radius, sheetLeft);
+}
 
 export interface CurlWebglLayerProps {
   /** Sheet width in px (play-zone is 2×). */
@@ -11,8 +33,10 @@ export interface CurlWebglLayerProps {
   height: number;
   /** True while a fold is active (dragging or settling) — shows the canvas. */
   active: boolean;
-  /** Fold progress 0–100, drives the cone curl. */
-  progress: number;
+  /** The active reflection fold (crease + geometry) that drives the curl. */
+  fold: ReflectionFold | null;
+  /** Which side the sheet rests on (false = right, true = left). */
+  flipped: boolean;
   /** Page background painted behind each captured face. */
   pageBackground?: string;
   /** Front / back face content — rendered off-screen only as snapshot sources. */
@@ -33,7 +57,8 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
     width,
     height,
     active,
-    progress,
+    fold,
+    flipped,
     pageBackground,
     frontContent,
     backContent,
@@ -47,6 +72,11 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
   const capturedRef = useRef(false);
   const onUnavailableRef = useRef(onUnavailable);
   onUnavailableRef.current = onUnavailable;
+  // Latest fold/flipped for the mount effect's first draw.
+  const foldRef = useRef(fold);
+  foldRef.current = fold;
+  const flippedRef = useRef(flipped);
+  flippedRef.current = flipped;
 
   const hasBack = backContent != null;
 
@@ -90,7 +120,7 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
         }
       }
       capturedRef.current = true;
-      rendererRef.current.render(progress);
+      renderFold(rendererRef.current, foldRef.current, flippedRef.current, width);
     })();
 
     return () => {
@@ -106,10 +136,10 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
   // Draw each frame while folding.
   useEffect(() => {
     const renderer = rendererRef.current;
-    if (renderer && active && capturedRef.current) {
-      renderer.render(progress);
+    if (renderer && active && capturedRef.current && fold) {
+      renderFold(renderer, fold, flipped, width);
     }
-  }, [active, progress]);
+  }, [active, fold, flipped, width]);
 
   const captureStyle: CSSProperties = {
     position: 'absolute',

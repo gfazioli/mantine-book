@@ -8,7 +8,7 @@
  * draws. The flat-fold DOM renderer remains the fallback; this is the opt-in
  * `variant="rounded"` path. No React, no DOM measurement here.
  */
-import { buildConeMesh, coneParams, deformConeMesh } from '../../flip/coneDeformer';
+import { buildConeMesh } from '../../flip/coneDeformer';
 
 const VERTEX_SRC = `#version 300 es
 in vec3 aPos;      // play-zone pixels: x ∈ [0, 2W], y ∈ [0, H], z = depth px
@@ -110,7 +110,6 @@ export class CurlGlRenderer {
   private readonly rows: number;
   private readonly texcoords: Float32Array;
   private readonly indices: Uint16Array;
-  private readonly unitPos: Float32Array; // cone deformer output (unit space)
   private readonly scaledPos: Float32Array; // play-zone px
   private readonly normals: Float32Array;
 
@@ -135,7 +134,6 @@ export class CurlGlRenderer {
     const mesh = buildConeMesh(cols, rows);
     this.texcoords = mesh.texcoords;
     this.indices = mesh.indices;
-    this.unitPos = new Float32Array(mesh.vertexCount * 3);
     this.scaledPos = new Float32Array(mesh.vertexCount * 3);
     this.normals = new Float32Array(mesh.vertexCount * 3);
 
@@ -263,37 +261,60 @@ export class CurlGlRenderer {
   }
 
   /**
-   * Render the cone curl at `progress` (0–100). v1 curls horizontally (the
-   * right edge toward the spine); orientation to an arbitrary crease comes in a
-   * follow-up. The sheet occupies the right half of the 2W play-zone at rest.
+   * Render the curl by wrapping the page around the CREASE line (cylinder model,
+   * kivy/Hung). The crease — its midpoint and normal — comes straight from the
+   * reflection fold, so the curl follows the drag in EVERY direction (horizontal,
+   * vertical, diagonal) with the correct sign, and there is no fixed-axis spike.
+   *
+   * @param creaseMidX page-coord crease midpoint x (spine at x=0)
+   * @param creaseMidY page-coord crease midpoint y
+   * @param nx,ny      crease normal (unit), pointing toward the grabbed edge:
+   *                   page points with positive distance along it are the flap
+   *                   that wraps; the spine side stays flat.
+   * @param radius     curl radius in px (larger = gentler wrap)
+   * @param sheetLeft  page x of the sheet's spine edge: 0 at rest, −W when flipped
    */
-  render(progress: number): void {
+  render(
+    creaseMidX: number,
+    creaseMidY: number,
+    nx: number,
+    ny: number,
+    radius: number,
+    sheetLeft: number
+  ): void {
     const gl = this.gl;
     const { W, H, padY } = this;
-    const { theta: rawTheta, apex, rotation } = coneParams(progress);
-    // Gentler wrap: the full π/2 cone hugs the virtual cylinder far too tightly.
-    const theta = rawTheta * 0.4;
-
-    deformConeMesh(this.unitPos, this.texcoords, theta, apex);
-
-    // Rigid rotation about the spine (the u=0 / x=0 edge), in the x–z plane,
-    // turning the page from the right half (+x) toward the left (−x), then scale
-    // the unit result into play-zone pixels (spine at x = W).
-    const cosR = Math.cos(rotation);
-    const sinR = Math.sin(rotation);
-    const depthScale = W * 0.9;
-    const up = this.unitPos;
+    const PI = Math.PI;
+    const r = Math.max(radius, 1);
+    const tc = this.texcoords;
     const sp = this.scaledPos;
-    for (let i = 0; i < up.length; i += 3) {
-      const x = up[i];
-      const y = up[i + 1];
-      const z = up[i + 2];
-      const rx = x * cosR + z * sinR;
-      const rz = -x * sinR + z * cosR;
-      sp[i] = W + rx * W; // play-zone x (0..2W)
-      sp[i + 1] = padY + H / 2 + y * H; // play-zone y, offset into the padded band
-      sp[i + 2] = rz * depthScale;
+    const count = tc.length / 2;
+    for (let i = 0; i < count; i++) {
+      const px = sheetLeft + tc[i * 2] * W; // page x (spine→free edge)
+      const py = tc[i * 2 + 1] * H; // page y
+      const d = (px - creaseMidX) * nx + (py - creaseMidY) * ny; // signed dist from crease
+      let wx = px;
+      let wy = py;
+      let wz = 0;
+      if (d > 0) {
+        const dr = d / r;
+        if (dr <= PI) {
+          const f = r * Math.sin(dr) - d; // wrap around the cylinder
+          wx = px + nx * f;
+          wy = py + ny * f;
+          wz = r * (1 - Math.cos(dr));
+        } else {
+          const f = PI * r - 2 * d; // flat back, fully wrapped over
+          wx = px + nx * f;
+          wy = py + ny * f;
+          wz = 2 * r;
+        }
+      }
+      sp[i * 3] = W + wx; // play-zone x (page x + W; spine at centre)
+      sp[i * 3 + 1] = padY + wy; // play-zone y (padded band)
+      sp[i * 3 + 2] = wz; // depth toward the viewer
     }
+    const depthScale = 2 * r;
 
     this.computeNormals();
 
