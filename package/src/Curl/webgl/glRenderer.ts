@@ -309,8 +309,17 @@ export class CurlGlRenderer {
   }
 
   dispose(): void {
+    // Intentionally do NOT call WEBGL_lose_context here: React StrictMode mounts
+    // effects twice in dev, and losing the context on the first cleanup leaves
+    // the immediate remount with a dead context. Drop GL objects and let the
+    // context be GC'd when the canvas is removed.
     const gl = this.gl;
-    const ext = gl.getExtension('WEBGL_lose_context');
-    ext?.loseContext();
+    gl.bindVertexArray(null);
+    gl.deleteVertexArray(this.vao);
+    gl.deleteBuffer(this.posBuf);
+    gl.deleteBuffer(this.normBuf);
+    gl.deleteTexture(this.frontTex);
+    gl.deleteTexture(this.backTex);
+    gl.deleteProgram(this.program);
   }
 }

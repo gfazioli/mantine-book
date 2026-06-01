@@ -18,7 +18,10 @@ export async function captureFaceTexture(
 ): Promise<HTMLImageElement | null> {
   try {
     const { toPng } = await import('html-to-image');
-    const dataUrl = await toPng(node, { pixelRatio, cacheBust: true });
+    // skipFonts: html-to-image otherwise reads every stylesheet's cssRules to
+    // inline @font-face, which throws a SecurityError on cross-origin sheets
+    // (Google Fonts / CDN). We don't need embedded web fonts for the snapshot.
+    const dataUrl = await toPng(node, { pixelRatio, skipFonts: true });
     const img = new Image();
     img.decoding = 'async';
     await new Promise<void>((resolve, reject) => {
