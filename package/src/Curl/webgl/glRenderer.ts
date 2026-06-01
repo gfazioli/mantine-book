@@ -112,6 +112,8 @@ export class CurlGlRenderer {
 
   private W = 1;
   private H = 1;
+  /** Vertical headroom (px each side) so the curl can extend past the page. */
+  private padY = 0;
 
   constructor(canvas: HTMLCanvasElement, cols = 40, rows = 26) {
     const gl = canvas.getContext('webgl2', {
@@ -186,13 +188,17 @@ export class CurlGlRenderer {
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   }
 
-  /** Size the drawing buffer to the play-zone (2W × H) at the given DPR. */
+  /** Vertical headroom as a fraction of the sheet height (each side). */
+  static readonly PAD_RATIO = 0.18;
+
+  /** Size the drawing buffer to the play-zone (2W × (H + 2·pad)) at the given DPR. */
   resize(sheetWidth: number, sheetHeight: number, dpr: number): void {
     this.W = sheetWidth;
     this.H = sheetHeight;
+    this.padY = Math.round(sheetHeight * CurlGlRenderer.PAD_RATIO);
     const canvas = this.gl.canvas as HTMLCanvasElement;
     canvas.width = Math.round(2 * sheetWidth * dpr);
-    canvas.height = Math.round(sheetHeight * dpr);
+    canvas.height = Math.round((sheetHeight + 2 * this.padY) * dpr);
     this.gl.viewport(0, 0, canvas.width, canvas.height);
   }
 
@@ -257,8 +263,10 @@ export class CurlGlRenderer {
    */
   render(progress: number): void {
     const gl = this.gl;
-    const { W, H } = this;
-    const { theta, apex, rotation } = coneParams(progress);
+    const { W, H, padY } = this;
+    const { theta: rawTheta, apex, rotation } = coneParams(progress);
+    // Gentler wrap: the full π/2 cone hugs the virtual cylinder too tightly.
+    const theta = rawTheta * 0.6;
 
     deformConeMesh(this.unitPos, this.texcoords, theta, apex);
 
@@ -277,7 +285,7 @@ export class CurlGlRenderer {
       const rx = x * cosR + z * sinR;
       const rz = -x * sinR + z * cosR;
       sp[i] = W + rx * W; // play-zone x (0..2W)
-      sp[i + 1] = H / 2 + y * H; // play-zone y (0..H)
+      sp[i + 1] = padY + H / 2 + y * H; // play-zone y, offset into the padded band
       sp[i + 2] = rz * depthScale;
     }
 
@@ -293,7 +301,7 @@ export class CurlGlRenderer {
 
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
-    gl.uniform2f(gl.getUniformLocation(this.program, 'uResolution'), 2 * W, H);
+    gl.uniform2f(gl.getUniformLocation(this.program, 'uResolution'), 2 * W, H + 2 * padY);
     gl.uniform1f(gl.getUniformLocation(this.program, 'uDepth'), depthScale * 2);
     gl.uniform3f(gl.getUniformLocation(this.program, 'uLightDir'), -0.3, -0.4, 0.85);
     gl.uniform1i(gl.getUniformLocation(this.program, 'uHasBack'), this.hasBack ? 1 : 0);

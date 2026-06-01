@@ -41,6 +41,12 @@ export interface CurlControllerOptions {
 export interface CurlController extends FoldView {
   /** True while a fold is active (dragging or settling). */
   folding: boolean;
+  /**
+   * 0–100 curl amount, SIGNED toward the spine: it grows only as the grabbed
+   * edge is dragged toward the spine, and is 0 when dragged away (so the WebGL
+   * curl tracks the drag direction instead of any horizontal motion).
+   */
+  curlProgress: number;
   /** Pointer handlers to spread on the play-zone root (empty when disabled). */
   dragHandlers: {
     onPointerDown?: PointerEventHandler;
@@ -72,7 +78,11 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
     onFlip,
   } = options;
 
-  const [view, setView] = useState<FoldView>({ fold: null, flipped: false });
+  const [view, setView] = useState<FoldView & { curlProgress: number }>({
+    fold: null,
+    flipped: false,
+    curlProgress: 0,
+  });
 
   const flippedRef = useRef(false);
   const foldRef = useRef<ReflectionFold | null>(null);
@@ -82,11 +92,21 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
   const lastTargetRef = useRef<Point | null>(null);
   const animator = useFlipAnimator();
 
-  const setBoth = useCallback((f: ReflectionFold | null, flip: boolean) => {
+  const setBoth = useCallback((f: ReflectionFold | null, flip: boolean, curlProgress = 0) => {
     foldRef.current = f;
     flippedRef.current = flip;
-    setView({ fold: f, flipped: flip });
+    setView({ fold: f, flipped: flip, curlProgress });
   }, []);
+
+  // Curl amount signed toward the spine: positive only as the grabbed edge moves
+  // toward x=0, clamped to 0 when moving away (so the curl follows the drag).
+  const signedCurl = useCallback(
+    (anchor: Point, target: Point): number => {
+      const toward = (anchor.x - target.x) * (anchor.x < 0 ? -1 : 1);
+      return Math.max(0, Math.min(100, (toward / (2 * W)) * 100));
+    },
+    [W]
+  );
 
   // Keep the latest callbacks in refs so the handlers below stay stable.
   const onFoldRef = useRef(onFold);
@@ -126,12 +146,12 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
       const target = clampReflectionTarget(anchor, local, W, H);
       lastTargetRef.current = target;
       const f = computeReflectionFold(anchor, target, W, H);
-      setBoth(f, flippedRef.current);
+      setBoth(f, flippedRef.current, signedCurl(anchor, target));
       if (f) {
         onFoldRef.current?.({ progress: f.progress, phase: 'move' });
       }
     },
-    [W, H, setBoth]
+    [W, H, setBoth, signedCurl]
   );
 
   const handleRelease = useCallback(
@@ -169,7 +189,7 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
             y: from.y + (to.y - from.y) * eased,
           };
           const f = computeReflectionFold(anchor, t, W, H);
-          setBoth(f, wasFlipped);
+          setBoth(f, wasFlipped, signedCurl(anchor, t));
           if (f) {
             onFoldRef.current?.({ progress: f.progress, phase: 'settle' });
           }
@@ -182,7 +202,7 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
         },
       });
     },
-    [W, H, threshold, flippingTime, animator, setBoth]
+    [W, H, threshold, flippingTime, animator, setBoth, signedCurl]
   );
 
   const drag = useDragController({
@@ -208,6 +228,7 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
     fold: view.fold,
     flipped: view.flipped,
     folding: view.fold !== null,
+    curlProgress: view.curlProgress,
     dragHandlers,
   };
 }
