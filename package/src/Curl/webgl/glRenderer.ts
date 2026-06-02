@@ -67,14 +67,13 @@ void main() {
     light *= 0.82;                         // the curled-under back reads a touch darker
   }
   vec3 rgb = base.rgb * clamp(light, 0.0, 1.3) + vec3(spec * 0.6); // additive specular highlight
-  // Cast shadow: a soft blob the lifted curl drops on the flat page (vDist < 0).
-  // ZERO at the crease (no brightness step / hard line on the fold), it ramps up
-  // quickly just inside — right under the curl's overhang, where it's visible —
-  // then fades out over the band. Peaks at ~uShadow so the slider has a clear,
-  // responsive effect (matching flat mode) without re-introducing a line.
+  // Cast shadow: a NARROW soft accent right at the base of the curl on the flat
+  // page (vDist < 0). ZERO at the crease (no line), it peaks just inside under
+  // the overhang and fades over a short band — a localized ambient-occlusion-like
+  // darkening, NOT a wide stripe across the page.
   if (vDist < 0.0 && uShadow > 0.0) {
     float t = clamp(-vDist / uShadowBand, 0.0, 1.0);   // 0 at the crease → 1 at the band edge
-    float shade = uShadow * 0.7 * smoothstep(0.0, 0.12, t) * (1.0 - smoothstep(0.12, 1.0, t));
+    float shade = uShadow * 0.5 * smoothstep(0.0, 0.2, t) * (1.0 - smoothstep(0.2, 1.0, t));
     rgb *= 1.0 - shade;
   }
   fragColor = vec4(rgb, base.a);
@@ -367,9 +366,9 @@ export class CurlGlRenderer {
     gl.uniform1f(gl.getUniformLocation(this.program, 'uDepth'), depthScale * 2);
     gl.uniform3f(gl.getUniformLocation(this.program, 'uLightDir'), -0.3, -0.4, 0.85);
     gl.uniform1f(gl.getUniformLocation(this.program, 'uShadow'), shadowStrength);
-    // The cast shadow fades over a wide band (a few × the roll height) so it
-    // reads as a soft gradient under the curl rather than a defined stripe.
-    gl.uniform1f(gl.getUniformLocation(this.program, 'uShadowBand'), Math.max(70, 3.0 * r));
+    // Narrow band (≈ the roll height) so the cast shadow is a localized accent
+    // at the base of the curl, not a wide stripe down the page.
+    gl.uniform1f(gl.getUniformLocation(this.program, 'uShadowBand'), Math.max(36, 1.3 * r));
     gl.uniform1i(gl.getUniformLocation(this.program, 'uHasBack'), this.hasBack ? 1 : 0);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.frontTex);
