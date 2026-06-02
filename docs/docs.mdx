@@ -1,3 +1,4 @@
+import { Table } from '@mantine/core';
 import { InstallScript } from './components/InstallScript/InstallScript';
 import * as demos from './demos';
 
@@ -20,18 +21,58 @@ import '@gfazioli/mantine-book/styles.layer.css';
 ## Usage
 
 `Curl` curls a single sheet of paper. It has two faces declared as
-`<Curl.Front>` and `<Curl.Back>` children — grab the right edge (top or
-bottom) and drag toward the left to fold the sheet. The play-zone is twice
-the sheet width: the sheet rests in the right half and sweeps left as it
-curls. `Curl.Back` is optional — when omitted the back renders blank.
+`<Curl.Front>` and `<Curl.Back>` children — grab any point of the sheet's
+free edge and drag in any direction to fold it. The play-zone is twice the
+sheet width: the sheet rests in the right half and sweeps toward the spine
+(the centre) as it curls; once turned, it rests in the left half and folds
+back the other way. `Curl.Back` is optional — when omitted the back renders
+blank.
 
 <Demo data={demos.usage} />
 
+## Variants
+
+`Curl` ships two rendering paths, selected with the `variant` prop:
+
+<Table withTableBorder withColumnBorders my="md">
+  <Table.Thead>
+    <Table.Tr>
+      <Table.Th>variant</Table.Th>
+      <Table.Th>Renderer</Table.Th>
+      <Table.Th>Notes</Table.Th>
+    </Table.Tr>
+  </Table.Thead>
+  <Table.Tbody>
+    <Table.Tr>
+      <Table.Td>flat (default)</Table.Td>
+      <Table.Td>Pure-DOM reflection fold (CSS clip-path + gradient)</Table.Td>
+      <Table.Td>Fully interactive at rest, SSR-safe, the universal fallback</Table.Td>
+    </Table.Tr>
+    <Table.Tr>
+      <Table.Td>rounded</Table.Td>
+      <Table.Td>True 3D curl drawn on a WebGL canvas</Table.Td>
+      <Table.Td>
+        Faces are a static snapshot during the curl; the wrap tightness is set by curlRadius
+      </Table.Td>
+    </Table.Tr>
+  </Table.Tbody>
+</Table>
+
+The default `flat` variant needs no canvas and works everywhere. The
+`rounded` variant lifts the page as a real curved surface, lit with a soft
+specular ridge; `curlRadius` (px, default ~0.32 × width) controls how tightly
+it wraps — smaller turns the page sooner, larger is a gentler curl. If WebGL
+is unavailable or a face snapshot fails, `rounded` falls back to `flat`
+automatically, so it is always safe to opt in.
+
+Toggle the **Variant** control in the configurator below to compare them.
+
 ## Configurator
 
-Tweak the sheet size, the settle duration, the completion threshold, and
-the shadow intensity. Drag the right edge and release: past the threshold
-the sheet settles open (showing the Back); below it, it settles back to rest.
+Tweak the sheet size, the settle duration, the completion threshold, the
+shadow intensity, the curl radius, and the variant. Drag the free edge and
+release: past the threshold the sheet settles open (showing the Back); below
+it, it settles back to rest.
 
 <Demo data={demos.configurator} />
 

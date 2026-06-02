@@ -20,19 +20,19 @@
 This component is created on top of the [Mantine](https://mantine.dev/) library.
 It requires **Mantine 9.x** and **React 19**.
 
-[Mantine Book](https://gfazioli.github.io/mantine-book/) is a React component that renders a realistic iBooks-style page-turn book. Drag any corner to curl the page, click the edge to auto-flip, or wire up controlled navigation via props. Pages are declared as `<Book.Page>` children — any JSX inside, including images, text, MDX content or even canvases for a future PDF viewer.
+[Mantine Book](https://gfazioli.github.io/mantine-book/) renders a realistic iBooks-style page-curl. `Curl` folds a single sheet of paper with two faces — `<Curl.Front>` and `<Curl.Back>` — by dragging any point of its free edge in any direction. It offers two rendering paths: a pure-DOM **flat** reflection fold (the default, interactive at rest and SSR-safe) and a true 3D **rounded** WebGL curl with a lit specular ridge. Any JSX goes inside a face — text, images, MDX, even a canvas. It is the foundation for a future page-flip `Book` built as a stack of `Curl`s.
 
 ## Features
 
-- 📖 **Realistic curl**: corner-driven page deformation with proper intersection geometry and soft drop shadow — same look as iBooks / Notion ebooks
-- 🎯 **Compound API**: `<Book><Book.Page>…</Book.Page></Book>` — any React node as page content
-- 🃏 **Hard + soft pages**: covers rotate as rigid planes (`hard`), interior pages curl
-- 📐 **Auto layout**: container-relative single ↔ spread mode via `ResizeObserver` — no media-query coupling
-- 🖱️ **Drag, swipe, click**: PointerEvents unify mouse and touch; `mobileScrollSupport` keeps page scroll working
-- ⚡ **Quiescent at rest**: no perpetual `requestAnimationFrame` — rAF runs only during drag or auto-flip
-- 🎨 **Mantine-native theming**: `MantineColor` for shadows, `StyleProp<T>` for responsive dimensions, full Styles API
-- 📦 **Zero runtime dependencies** beyond Mantine peer deps. Algorithm is a from-scratch port (StPageFlip used only as a math reference, MIT)
-- ♿ **Accessible**: respects `prefers-reduced-motion`, semantic markup, keyboard nav planned for v0.2
+- 📄 **Single-sheet curl**: grab any point of the free edge and drag in any direction — a perpendicular-bisector reflection fold, the generalization of a corner page-turn
+- 🎯 **Compound API**: `<Curl><Curl.Front>…</Curl.Front><Curl.Back>…</Curl.Back></Curl>` — any React node as a face; the back is optional (renders blank when omitted)
+- 🧊 **Two variants**: `flat` (pure DOM + CSS, the universal fallback) and `rounded` (a true 3D curl on a WebGL canvas, with a soft specular ridge and a `curlRadius` control)
+- 🖱️ **Drag, swipe, release**: PointerEvents unify mouse and touch; a release settles open or back to rest past `flipThreshold`; `mobileScrollSupport` keeps page scroll working
+- ⚡ **Quiescent at rest**: no perpetual `requestAnimationFrame` — rAF runs only during a drag or the release settle
+- 🛟 **Graceful fallback**: `rounded` falls back to `flat` automatically when WebGL is unavailable or a face snapshot fails — always safe to opt in
+- 🧩 **React-owned content**: faces are rendered once by React (no `innerHTML` cloning), so event handlers inside a face stay alive
+- 📦 **Lazy WebGL**: the rounded renderer and its snapshot dependency load only when a rounded curl mounts — flat users pay nothing
+- 🎨 **Mantine-native theming**: `MantineColor` for shadows, CSS-var dimensions, full Styles API
 - 📦 **TypeScript**: complete type safety with exported prop interfaces
 
 > [!note]
@@ -59,17 +59,14 @@ import '@gfazioli/mantine-book/styles.css';
 ## Usage
 
 ```tsx
-import { Book } from '@gfazioli/mantine-book';
+import { Curl } from '@gfazioli/mantine-book';
 
 function Demo() {
   return (
-    <Book width={600} height={400} showCover>
-      <Book.Page hard>Cover</Book.Page>
-      <Book.Page>Page 1 content</Book.Page>
-      <Book.Page>Page 2 content</Book.Page>
-      <Book.Page>Page 3 content</Book.Page>
-      <Book.Page hard>Back cover</Book.Page>
-    </Book>
+    <Curl width={300} height={420} variant="rounded">
+      <Curl.Front>Front A</Curl.Front>
+      <Curl.Back>Back B</Curl.Back>
+    </Curl>
   );
 }
 ```

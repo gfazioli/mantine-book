@@ -6,7 +6,7 @@
 
 The primitive is the **single sheet**, not the book. `Curl` performs the soft page-curl of **one** sheet with two faces (`<Curl.Front>` / `<Curl.Back>`), driven by dragging any point of the free edge with the cursor / finger. A future `Book` will be a **stack of `Curl`s** (multi-page, `currentPage`, spread/single layout, click-to-flip).
 
-The curl is a **perpendicular-bisector reflection fold** (pure DOM + CSS, no WebGL, no canvas): the grabbed point on the free edge folds onto the pointer, so the crease is the perpendicular bisector of grab→pointer and the lifted flap is the page rectangle's anchor-side reflected across that crease (a CSS `det −1` matrix, which also mirrors the back-face content into a proper rotation). One code path covers every grab point and every drag direction — corner, mid-edge, up/down, both sides. StPageFlip's corner fold ([Nodlik/StPageFlip](https://github.com/Nodlik/StPageFlip), MIT, used only as a mathematical reference) is the special case where the anchor is a corner.
+Two rendering paths, selected by the `variant` prop. The default `flat` variant is a **perpendicular-bisector reflection fold** (pure DOM + CSS, no canvas): the grabbed point on the free edge folds onto the pointer, so the crease is the perpendicular bisector of grab→pointer and the lifted flap is the page rectangle's anchor-side reflected across that crease (a CSS `det −1` matrix, which also mirrors the back-face content into a proper rotation). One code path covers every grab point and every drag direction — corner, mid-edge, up/down, both sides. StPageFlip's corner fold ([Nodlik/StPageFlip](https://github.com/Nodlik/StPageFlip), MIT, used only as a mathematical reference) is the special case where the anchor is a corner. The opt-in `rounded` variant draws a **true 3D curl on a WebGL canvas** (crease-aligned cylinder wrap, lit with a specular ridge, tuned by `curlRadius`); the faces are snapshotted to textures during the curl and it falls back to `flat` on any WebGL/snapshot failure.
 
 ## Commands
 
@@ -37,10 +37,14 @@ Yarn workspaces monorepo with `package/` (npm package) and `docs/` (Next.js 16 d
 
 ### Package Source (`package/src/`)
 
-- `Curl/Curl.tsx` — Root component (Mantine factory pattern). Parses the `<Curl.Front>` / `<Curl.Back>` children, holds the fold state, wires `useDragController` + `useFlipAnimator`, and renders the layers. `Curl.Front` / `Curl.Back` are static markers (render nothing; the parent reads their props via `React.Children`).
+- `Curl/Curl.tsx` — Root component (Mantine factory pattern). Parses the `<Curl.Front>` / `<Curl.Back>` children, wires the `useCurlController` fold state machine, renders the DOM reflection layers for `flat`, and lazily mounts `CurlWebglLayer` (React.lazy + Suspense) for `variant="rounded"`. `Curl.Front` / `Curl.Back` are static markers (render nothing; the parent reads their props via `React.Children`).
 - `Curl/Curl.module.css` — Static framing for the layers (`root`, `restSheet`, `curlSheet`, `face`). Per-frame transform + clip-path are applied inline from React.
+- `Curl/webgl/glRenderer.ts` — Raw WebGL2 renderer for the `rounded` variant: a tessellated page mesh wrapped around the crease (cylinder model), front/back textures, smooth normals, Lambert + specular lighting with an edge-on self-shadow. No React/DOM here.
+- `Curl/webgl/CurlWebglLayer.tsx` — Client-only canvas layer. Keeps the live faces off-screen as snapshot sources, captures them to textures (re-capturing when `flipped` swaps which face rests/lifts), and drives `glRenderer` per fold frame. Falls back via `onUnavailable` on any WebGL/snapshot failure.
+- `Curl/webgl/snapshot.ts` — `captureFaceTexture` via lazy `@zumer/snapdom` (origin-clean data-URL → no WebGL taint).
 - `CurlFace/CurlFace.tsx` — Type/marker for a face (`align`, content). Both `Curl.Front` and `Curl.Back` are typed as `CurlFace`.
-- `flip/geometry.ts` — Pure reflection-fold math, no React/DOM: `computeReflectionFold(anchor, target, W, H)` (crease, `flatFront`/`flap` polygons via half-plane clip, the `det −1` CSS matrix, progress), `clampReflectionTarget` (two-disc clamp so the spine stays flat — the generalization of StPageFlip's `checkPositionAtCenterLine`), `shouldCompleteFold` (side-aware release decision), `pointsToCssPolygon`.
+- `flip/geometry.ts` — Pure reflection-fold math, no React/DOM: `computeReflectionFold(anchor, target, W, H)` (crease, `flatFront`/`flap` polygons via half-plane clip, the `det −1` CSS matrix, progress), `clampReflectionTarget` (two-disc clamp so the spine stays flat — the generalization of StPageFlip's `checkPositionAtCenterLine`), `shouldCompleteFold` (side-aware release decision), `computeFoldShadow`, `pointsToCssPolygon`.
+- `flip/useCurlController.ts` — The single fold state machine (composes `useDragController` + `useFlipAnimator`); returns the fold + `flipped`/`folding` flags + `dragHandlers`. Both the DOM and the WebGL renderers consume this one source of truth.
 - `flip/drag.ts` — `useDragController` hook (pointer state machine + rolling velocity sampling → click / drag / swipe).
 - `flip/animator.ts` — `useFlipAnimator` hook (rAF-driven lerp for the release settle).
 - `index.ts` — Public API barrel (component + types: `CurlProps`/`CurlFactory`/`CurlStylesNames`/…, `CurlFaceProps`, and the pure `Point` / `ReflectionFold`).
@@ -60,7 +64,7 @@ Rollup → dual ESM/CJS with `'use client'` banner. CSS modules hashed with `has
 - **Shadows**: derived from the crease (`computeFoldShadow`). The `shadowLayer` SVG overlay paints the reflected flap with a gradient anchored at the crease (dark where the page curves away → transparent at the free edge); the cast halo is a `drop-shadow` filter on `curlSheet`. Both scale with `shadowOpacity` and a `sin(progress·π)` strength curve (0 at rest, peak mid-fold, 0 at a full turn).
 - **Styles API names**: `root`, `restSheet`, `curlSheet`, `shadowLayer`, `face`. CSS vars on `root`: `--curl-page-width`, `--curl-page-height`, `--curl-page-background`, `--curl-shadow-color` (plus `--curl-reveal-background`, reserved for the forthcoming reveal layer).
 
-> **Not yet implemented**: a true curved soft edge (the current edge is a sharp clip + a crease gradient, not a per-vertex curve — that needs WebGL, see `RESEARCH-page-curl.md`), the reveal layer (`revealBackground` / `--curl-reveal-background` / a `bottomFace`), and the `Book` stack.
+> **Not yet implemented**: the reveal layer (`revealBackground` / `--curl-reveal-background` / a `bottomFace`), and the `Book` stack. The true curved curl already ships as `variant="rounded"` (WebGL); the `flat` variant remains a sharp clip + crease gradient by design (the universal fallback).
 
 ## Testing
 
