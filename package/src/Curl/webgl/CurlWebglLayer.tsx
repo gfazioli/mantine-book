@@ -97,7 +97,7 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
 
   const hasBack = backContent != null;
 
-  // Create the renderer + capture the faces once, on mount.
+  // Renderer lifecycle — create on mount / size change, dispose on cleanup.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) {
@@ -114,7 +114,30 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
     const dpr = typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio || 1, 2);
     renderer.resize(width, height, dpr);
 
+    return () => {
+      renderer?.dispose();
+      rendererRef.current = null;
+      capturedRef.current = false;
+    };
+  }, [width, height]);
+
+  // Capture the faces into textures. Re-runs when the size, the presence of a
+  // back face, or which side rests/lifts (`flipped`) changes, so the front/back
+  // textures always match restFaceNode/liftFaceNode. Crucially this re-captures
+  // on a flip: the flip settle completes while the canvas is hidden (folding =
+  // false), so the swapped textures are ready before the next (backward) drag —
+  // otherwise the renderer would keep drawing the old resting face (e.g. Front A
+  // staying flat while dragging B→A). Content re-capture (different children) is
+  // still TODO(P4).
+  useEffect(() => {
+    const renderer = rendererRef.current;
+    if (!renderer) {
+      return;
+    }
+    const dpr = typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+    capturedRef.current = false;
     let cancelled = false;
+    const live = () => !cancelled && rendererRef.current === renderer;
     (async () => {
       // Resolve the page background (the CSS var) so the texture's opaque base
       // matches the sheet colour instead of defaulting to white.
@@ -122,23 +145,24 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
         ? getComputedStyle(frontRef.current).backgroundColor || '#ffffff'
         : '#ffffff';
       const front = frontRef.current ? await captureFaceTexture(frontRef.current, dpr, bg) : null;
-      if (cancelled || !rendererRef.current) {
+      if (!live()) {
         return;
       }
       if (!front) {
         onUnavailableRef.current?.();
         return;
       }
-      rendererRef.current.setFront(front);
+      renderer.setFront(front);
       if (hasBack && backRef.current) {
         const back = await captureFaceTexture(backRef.current, dpr, bg);
-        if (!cancelled && rendererRef.current && back) {
-          rendererRef.current.setBack(back);
+        if (!live() || !back) {
+          return;
         }
+        renderer.setBack(back);
       }
       capturedRef.current = true;
       renderFold(
-        rendererRef.current,
+        renderer,
         foldRef.current,
         flippedRef.current,
         width,
@@ -149,13 +173,9 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
 
     return () => {
       cancelled = true;
-      renderer?.dispose();
-      rendererRef.current = null;
-      capturedRef.current = false;
     };
-    // Re-create only when the sheet size changes; content re-capture is TODO(P4).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, height, hasBack]);
+  }, [width, height, hasBack, flipped]);
 
   // Draw each frame while folding.
   useEffect(() => {
