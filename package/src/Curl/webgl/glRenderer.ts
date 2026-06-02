@@ -37,6 +37,7 @@ uniform sampler2D uBack;
 uniform bool uHasBack;
 uniform vec3 uLightDir;
 uniform float uShadow;      // self-shadow strength on the curl (0–1, = shadowOpacity)
+uniform vec3 uShadowColor;  // shadow tint (= shadowColor), default near-black
 out vec4 fragColor;
 void main() {
   vec3 N = normalize(vNormal);
@@ -69,10 +70,11 @@ void main() {
     light *= mix(1.0, 0.82, edge);         // curled-under back darkens at the ridge, bright once flat
   }
   vec3 rgb = base.rgb * clamp(light, 0.0, 1.3) + vec3(spec * 0.6); // additive specular highlight
-  // Self-shadow on the curling page: the same quantity shadowOpacity shades on
-  // the lifted flap in the flat variant. Peaks at the ridge, zero on the flat
-  // resting region, so it never bands the page beneath.
-  rgb *= 1.0 - uShadow * 0.5 * edge;
+  // Self-shadow on the curling page, tinted TOWARD uShadowColor (= shadowColor),
+  // the same quantity shadowOpacity shades on the lifted flap in the flat
+  // variant. Peaks at the ridge, zero on the flat resting region. The default
+  // shadowColor is near-black, so this matches the old darken-toward-black look.
+  rgb = mix(rgb, uShadowColor, uShadow * 0.5 * edge);
   fragColor = vec4(rgb, base.a);
 }`;
 
@@ -290,6 +292,7 @@ export class CurlGlRenderer {
    * @param radius     curl radius in px (larger = gentler wrap)
    * @param sheetLeft  page x of the sheet's spine edge: 0 at rest, −W when flipped
    * @param shadowStrength 0–1 self-shadow strength shading the curl as it curves away
+   * @param shadowColor RGB (0–1) the self-shadow tints toward (= shadowColor); default near-black
    */
   render(
     creaseMidX: number,
@@ -298,7 +301,8 @@ export class CurlGlRenderer {
     ny: number,
     radius: number,
     sheetLeft: number,
-    shadowStrength: number
+    shadowStrength: number,
+    shadowColor: readonly [number, number, number] = [0.1, 0.1, 0.12]
   ): void {
     const gl = this.gl;
     const { W, H, padY } = this;
@@ -357,6 +361,12 @@ export class CurlGlRenderer {
     const lightX = sheetLeft < 0 ? -0.3 : 0.3;
     gl.uniform3f(gl.getUniformLocation(this.program, 'uLightDir'), lightX, -0.4, 0.85);
     gl.uniform1f(gl.getUniformLocation(this.program, 'uShadow'), shadowStrength);
+    gl.uniform3f(
+      gl.getUniformLocation(this.program, 'uShadowColor'),
+      shadowColor[0],
+      shadowColor[1],
+      shadowColor[2]
+    );
     gl.uniform1i(gl.getUniformLocation(this.program, 'uHasBack'), this.hasBack ? 1 : 0);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.frontTex);

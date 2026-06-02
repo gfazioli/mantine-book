@@ -1,5 +1,6 @@
 import { Curl } from '@gfazioli/mantine-book';
 import { MantineDemo } from '@mantinex/demo';
+import { BACK_COLOR, Face, FRONT_COLOR, VISIBLE_OVERFLOW } from './_curl-demo-kit';
 
 const code = `
 import { Curl } from '@gfazioli/mantine-book';
@@ -14,34 +15,14 @@ function Demo() {
 }
 `;
 
-function Face({ label, color }: { label: string; color: string }) {
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 36,
-        fontWeight: 700,
-        color: '#fff',
-        background: color,
-      }}
-    >
-      {label}
-    </div>
-  );
-}
-
 function Demo() {
   return (
     <Curl width={300} height={420}>
       <Curl.Front>
-        <Face label="Front A" color="#4263eb" />
+        <Face label="Front A" color={FRONT_COLOR} />
       </Curl.Front>
       <Curl.Back>
-        <Face label="Back B" color="#e8590c" />
+        <Face label="Back B" color={BACK_COLOR} />
       </Curl.Back>
     </Curl>
   );
@@ -52,4 +33,5 @@ export const usage: MantineDemo = {
   component: Demo,
   code,
   centered: true,
+  overflow: VISIBLE_OVERFLOW,
 };

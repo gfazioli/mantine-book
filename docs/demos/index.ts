@@ -1,2 +1,12 @@
-export { configurator } from './Curl.demo.configurator';
+export { align } from './Curl.demo.align';
+export { contentImage } from './Curl.demo.contentImage';
+export { curlRadius } from './Curl.demo.curlRadius';
+export { dimensions } from './Curl.demo.dimensions';
+export { events } from './Curl.demo.events';
+export { faces } from './Curl.demo.faces';
+export { gestures } from './Curl.demo.gestures';
+export { pageBackground } from './Curl.demo.pageBackground';
+export { release } from './Curl.demo.release';
+export { shadow } from './Curl.demo.shadow';
 export { usage } from './Curl.demo.usage';
+export { variant } from './Curl.demo.variant';
