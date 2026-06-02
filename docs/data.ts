@@ -27,7 +27,7 @@ export interface PackageData {
 export const PACKAGE_DATA: PackageData = {
   packageName: '@gfazioli/mantine-book',
   packageDescription:
-    'A highly customizable BOOK indicator component for React applications built with Mantine. Provides visual feedback for status indicators with support for colors, sizes, animations, and controlled states.',
+    'A realistic iBooks-style page-curl component for React, built on Mantine. Curl a single sheet with two faces by dragging any point of its free edge in any direction — a pure-DOM reflection fold (flat) or a true 3D WebGL curl (rounded).',
   mdxFileUrl: 'https://github.com/gfazioli/mantine-book/blob/master/docs/docs.mdx',
   repositoryUrl: 'https://github.com/gfazioli/mantine-book',
   licenseUrl: 'https://github.com/gfazioli/mantine-book/blob/master/LICENSE',
