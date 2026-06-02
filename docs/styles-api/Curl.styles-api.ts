@@ -4,7 +4,8 @@ import type { StylesApiData } from '../components/styles-api.types';
 export const CurlStylesApi: StylesApiData<CurlFactory> = {
   selectors: {
     root: 'Play-zone (twice the sheet width) with 3D perspective; gesture target for the drag',
-    restSheet: 'The face lying flat at rest (Front in the right half; Back in the left half once flipped)',
+    restSheet:
+      'The face lying flat at rest (Front in the right half; Back in the left half once flipped)',
     curlSheet: 'The lifting flap showing the opposite face (clipped + rotated per frame)',
     shadowLayer:
       'SVG overlay with the curl shading gradient (the cast halo is a filter on curlSheet)',
