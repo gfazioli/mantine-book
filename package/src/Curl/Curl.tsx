@@ -9,6 +9,7 @@ import {
   getThemeColor,
   type MantineColor,
   type StylesApiProps,
+  useMantineTheme,
   useProps,
   useStyles,
 } from '@mantine/core';
@@ -194,7 +195,7 @@ export const Curl = factory<CurlFactory>((_props) => {
     align,
     variant,
     shadowOpacity,
-    shadowColor: _sc,
+    shadowColor,
     pageBackground: _pb,
     revealBackground: _rb,
     curlRadius,
@@ -323,6 +324,10 @@ export const Curl = factory<CurlFactory>((_props) => {
   const webglActive = rounded && folding;
   // Curl radius for the WebGL wrap; default lets a full drag turn the page.
   const radius = curlRadius ?? Math.round(W * 0.32);
+  // Resolved shadow color (a CSS string) for the WebGL self-shadow tint — the
+  // flat path uses the `--curl-shadow-color` CSS var instead.
+  const theme = useMantineTheme();
+  const resolvedShadowColor = getThemeColor(shadowColor ?? 'dark.9', theme);
 
   /* --- Shadows -------------------------------------------------- */
 
@@ -442,6 +447,7 @@ export const Curl = factory<CurlFactory>((_props) => {
             flipped={flipped}
             curlRadius={radius}
             shadowOpacity={shadowOp}
+            shadowColor={resolvedShadowColor}
             frontContent={restFaceNode}
             backContent={liftFaceNode}
             onUnavailable={() => setWebglFailed(true)}

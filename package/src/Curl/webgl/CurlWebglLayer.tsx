@@ -1,9 +1,30 @@
 'use client';
 
-import React, { type CSSProperties, type ReactNode, useEffect, useRef } from 'react';
+import React, { type CSSProperties, type ReactNode, useEffect, useMemo, useRef } from 'react';
 import type { ReflectionFold } from '../../flip/geometry';
 import { CurlGlRenderer } from './glRenderer';
 import { captureFaceTexture } from './snapshot';
+
+const DEFAULT_SHADOW_RGB: [number, number, number] = [0.1, 0.1, 0.12];
+
+/** Parse any CSS color string to [r, g, b] in 0–1 via a throwaway 1×1 canvas. */
+function cssColorToRgb(color: string | undefined): [number, number, number] {
+  if (!color || typeof document === 'undefined') {
+    return DEFAULT_SHADOW_RGB;
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return DEFAULT_SHADOW_RGB;
+  }
+  ctx.fillStyle = '#1a1b1e';
+  ctx.fillStyle = color; // an invalid color leaves the fallback fillStyle
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+  return [r / 255, g / 255, b / 255];
+}
 
 /**
  * Drive the renderer from a fold: the crease (midpoint + direction) becomes the
@@ -16,7 +37,8 @@ function renderFold(
   flipped: boolean,
   width: number,
   maxRadius: number,
-  shadowOpacity: number
+  shadowOpacity: number,
+  shadowColor: readonly [number, number, number]
 ): void {
   if (!fold) {
     return;
@@ -30,7 +52,16 @@ function renderFold(
   // release; shrinking r flattens the curl as it turns over, so it reaches like
   // the flat fold and the WebGL→DOM handoff is seamless (r→0 == the flat fold).
   const r = Math.max(2, maxRadius * (1 - fold.progress / 100));
-  renderer.render(fold.creaseMid.x, fold.creaseMid.y, nx, ny, r, sheetLeft, shadowOpacity);
+  renderer.render(
+    fold.creaseMid.x,
+    fold.creaseMid.y,
+    nx,
+    ny,
+    r,
+    sheetLeft,
+    shadowOpacity,
+    shadowColor
+  );
 }
 
 export interface CurlWebglLayerProps {
@@ -46,8 +77,10 @@ export interface CurlWebglLayerProps {
   flipped: boolean;
   /** Curl radius in px (smaller = tighter wrap / turns sooner). */
   curlRadius: number;
-  /** Cast-shadow opacity (0–1) the lifted curl drops on the flat page. */
+  /** Self-shadow strength (0–1) shading the curl as it curves away. */
   shadowOpacity: number;
+  /** Resolved CSS color the self-shadow tints toward (= shadowColor). */
+  shadowColor?: string;
   /** Page background painted behind each captured face. */
   pageBackground?: string;
   /** Front / back face content — rendered off-screen only as snapshot sources. */
@@ -72,11 +105,14 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
     flipped,
     curlRadius,
     shadowOpacity,
+    shadowColor,
     pageBackground,
     frontContent,
     backContent,
     onUnavailable,
   } = props;
+
+  const shadowColorRgb = useMemo(() => cssColorToRgb(shadowColor), [shadowColor]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frontRef = useRef<HTMLDivElement | null>(null);
@@ -94,6 +130,8 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
   curlRadiusRef.current = curlRadius;
   const shadowOpacityRef = useRef(shadowOpacity);
   shadowOpacityRef.current = shadowOpacity;
+  const shadowColorRgbRef = useRef(shadowColorRgb);
+  shadowColorRgbRef.current = shadowColorRgb;
 
   const hasBack = backContent != null;
 
@@ -167,7 +205,8 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
         flippedRef.current,
         width,
         curlRadiusRef.current,
-        shadowOpacityRef.current
+        shadowOpacityRef.current,
+        shadowColorRgbRef.current
       );
     })();
 
@@ -181,9 +220,9 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
   useEffect(() => {
     const renderer = rendererRef.current;
     if (renderer && active && capturedRef.current && fold) {
-      renderFold(renderer, fold, flipped, width, curlRadius, shadowOpacity);
+      renderFold(renderer, fold, flipped, width, curlRadius, shadowOpacity, shadowColorRgb);
     }
-  }, [active, fold, flipped, width, curlRadius, shadowOpacity]);
+  }, [active, fold, flipped, width, curlRadius, shadowOpacity, shadowColorRgb]);
 
   const captureStyle: CSSProperties = {
     position: 'absolute',

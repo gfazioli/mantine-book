@@ -25,12 +25,40 @@ import '@gfazioli/mantine-book/styles.layer.css';
 free edge and drag in any direction to fold it. The play-zone is twice the
 sheet width: the sheet rests in the right half and sweeps toward the spine
 (the centre) as it curls; once turned, it rests in the left half and folds
-back the other way. `Curl.Back` is optional — when omitted the back renders
-blank.
+back the other way.
 
 <Demo data={demos.usage} />
 
-## Variants
+## Faces
+
+A sheet has two faces, declared as compound children: `<Curl.Front>` (the
+resting side) and `<Curl.Back>` (revealed as the page turns). Each face can
+hold any React node — text, images, MDX, even a `<canvas>` — rendered once and
+owned by React, so event handlers inside a face stay alive.
+
+`Curl.Back` is optional: omit it and the back renders blank (filled with the
+page background). Toggle it below:
+
+<Demo data={demos.faces} />
+
+## Content and alignment
+
+Each face clips overflow and centers smaller content by default. Use the
+`align` prop on `<Curl>` for both faces, or per-face on `<Curl.Front>` /
+`<Curl.Back>` to override. It accepts `{ horizontal, vertical }`, each one of
+`start` / `center` / `end`, and only affects content smaller than the face:
+
+<Demo data={demos.align} />
+
+### Media content
+
+`img`, `svg`, `video` and `canvas` are automatically scaled to fit the face
+(`object-fit: contain`), so oversized artwork is letterboxed rather than
+cropped:
+
+<Demo data={demos.contentImage} />
+
+## Variants and curl shape
 
 `Curl` ships two rendering paths, selected with the `variant` prop:
 
@@ -58,27 +86,84 @@ blank.
   </Table.Tbody>
 </Table>
 
-The default `flat` variant needs no canvas and works everywhere. The
-`rounded` variant lifts the page as a real curved surface, lit with a soft
-specular ridge; `curlRadius` (px, default ~0.32 × width) controls how tightly
-it wraps — smaller turns the page sooner, larger is a gentler curl. If WebGL
-is unavailable or a face snapshot fails, `rounded` falls back to `flat`
-automatically, so it is always safe to opt in.
+The default `flat` variant needs no canvas and works everywhere. If WebGL is
+unavailable or a face snapshot fails, `rounded` falls back to `flat`
+automatically, so it is always safe to opt in. Switch the variant and drag the
+sheet to compare them:
 
-Toggle the **Variant** control in the configurator below to compare them.
+<Demo data={demos.variant} />
 
-## Configurator
+### Curl radius
 
-Tweak the sheet size, the settle duration, the completion threshold, the
-shadow intensity, the curl radius, and the variant. Drag the free edge and
-release: past the threshold the sheet settles open (showing the Back); below
-it, it settles back to rest.
+`curlRadius` (rounded only, in px, default ~0.32 × width) sets how tightly the
+page wraps: a smaller radius makes a tight roll that turns the page sooner, a
+larger one a gentle, loose curl. Drag the slider, then drag the sheet:
 
-<Demo data={demos.configurator} />
+<Demo data={demos.curlRadius} />
 
-## Content alignment
+## Dimensions
 
-Each face clips overflow and centers smaller content by default. Use the
-`align` prop (on `<Curl>` or per-face on `<Curl.Front>` / `<Curl.Back>`) to
-change placement. Images, SVG and video are scaled to fit (`object-fit:
-contain`).
+`width` and `height` size the sheet in CSS px. The interactive **play-zone is
+twice the width**: the sheet rests in the right half and the curl sweeps left
+toward the spine, so a `width={260}` sheet occupies a `520px`-wide box.
+
+<Demo data={demos.dimensions} />
+
+## Shadows and lighting
+
+`shadowOpacity` (0–1) controls how strongly the lifting page is shaded as it
+curves away from the light, and `shadowColor` (a `MantineColor` or any CSS
+color) tints that shadow. Both apply to **either variant**.
+
+On top of the shadow, the `rounded` variant also **lights its own 3D surface**:
+a Lambert term darkens the curve, a tight specular ridge highlights the apex,
+and the light automatically follows the direction you fold so the gloss reads
+in both turn directions. This lighting needs no configuration — it is part of
+the 3D render, which is why there is no separate lighting control.
+
+<Demo data={demos.shadow} />
+
+## Page background
+
+`pageBackground` (a `MantineColor` or any CSS color) fills each face behind its
+content, so transparent content sits on a solid sheet.
+
+<Demo data={demos.pageBackground} />
+
+**Reserved:** `revealBackground` is accepted for forward compatibility but has
+no visible effect yet — it will paint the area uncovered by the curl once the
+reveal layer ships in a future release.
+
+## Interaction and release
+
+When you release a drag the sheet settles with an animation over `flippingTime`
+ms. `flipThreshold` (0–100, percent of a full turn) is the cutoff: drag past it
+and the sheet completes the turn (showing the Back); below it, it settles back
+to rest. `disabled` removes the drag interaction entirely.
+
+<Demo data={demos.release} />
+
+## Touch gestures
+
+On touch devices `Curl` also recognizes a **swipe** — a quick flick that
+completes the flip even when you release *below* `flipThreshold`. A gesture
+counts as a swipe only when it travels at least `swipeDistance` px in under
+`swipeTimeThreshold` ms, so raising `swipeDistance` (or lowering
+`swipeTimeThreshold`) demands a longer / faster flick.
+
+`mobileScrollSupport` (default `true`) keeps vertical page scrolling alive:
+the component waits for a clearly horizontal gesture before claiming the touch,
+so a vertical drag that starts on the sheet still scrolls the page. Set it to
+`false` to capture every touch on the sheet immediately (page scroll from the
+sheet is then blocked).
+
+<Demo data={demos.gestures} />
+
+## Events
+
+`onFold` fires continuously during a drag and the release settle with
+`{ progress, phase }` (`phase` is `'move'` or `'settle'`). `onFlip` fires once
+when a settle finishes, with the resting `{ flipped }` state. Drag the sheet and
+watch the readout:
+
+<Demo data={demos.events} />
