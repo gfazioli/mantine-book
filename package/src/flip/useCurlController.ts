@@ -1,6 +1,13 @@
 'use client';
 
-import { type PointerEventHandler, type RefObject, useCallback, useRef, useState } from 'react';
+import {
+  type PointerEventHandler,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useFlipAnimator } from './animator';
 import { type DragSummary, useDragController } from './drag';
 import {
@@ -32,6 +39,13 @@ export interface CurlControllerOptions {
   mobileScrollSupport?: boolean;
   /** When true, the drag handlers are omitted (resting only). */
   disabled?: boolean;
+  /**
+   * Controlled resting side. When provided, the sheet rests on the given side
+   * (`true` = left half) and external changes settle the sheet flat on the new
+   * side; the internal flip still reports through `onFlip` so the owner can
+   * update this value.
+   */
+  flipped?: boolean;
   /** The play-zone root element — used to map pointer → page-local coords. */
   rootRef: RefObject<HTMLDivElement | null>;
   onFold?: (info: { progress: number; phase: 'move' | 'settle' }) => void;
@@ -73,6 +87,7 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
     swipeTimeThreshold,
     mobileScrollSupport,
     disabled,
+    flipped: flippedProp,
     rootRef,
     onFold,
     onFlip,
@@ -80,11 +95,11 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
 
   const [view, setView] = useState<FoldView & { curlProgress: number }>({
     fold: null,
-    flipped: false,
+    flipped: flippedProp ?? false,
     curlProgress: 0,
   });
 
-  const flippedRef = useRef(false);
+  const flippedRef = useRef(flippedProp ?? false);
   const foldRef = useRef<ReflectionFold | null>(null);
   // The grabbed point on the free edge (fold anchor) and the last clamped
   // target — the release settle animates the target from here.
@@ -97,6 +112,37 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
     flippedRef.current = flip;
     setView({ fold: f, flipped: flip, curlProgress });
   }, []);
+
+  // Controlled resting side: when the owner changes `flipped` (arrows, a
+  // Group jumping to a page), run the SAME settle animation as a completed
+  // drag — a bottom-corner grab on the current free edge swept across to the
+  // opposite edge. The initial value never animates (the ref starts in sync).
+  useEffect(() => {
+    if (flippedProp === undefined || flippedProp === flippedRef.current) {
+      return;
+    }
+    animator.stop();
+    const wasFlipped = flippedRef.current;
+    const anchor: Point = { x: wasFlipped ? -W : W, y: H };
+    anchorRef.current = anchor;
+    const to: Point = { x: -anchor.x, y: anchor.y };
+    animator.start({
+      duration: flippingTime,
+      onProgress: (eased) => {
+        const t: Point = { x: anchor.x + (to.x - anchor.x) * eased, y: anchor.y };
+        const f = computeReflectionFold(anchor, t, W, H);
+        setBoth(f, wasFlipped, signedCurl(anchor, t));
+        if (f) {
+          onFoldRef.current?.({ progress: f.progress, phase: 'settle' });
+        }
+      },
+      onComplete: () => {
+        setBoth(null, flippedProp);
+        onFlipRef.current?.({ flipped: flippedProp });
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flippedProp]);
 
   // Curl amount signed toward the spine: positive only as the grabbed edge moves
   // toward x=0, clamped to 0 when moving away (so the curl follows the drag).
