@@ -3,6 +3,7 @@
 import type { MantineColor } from '@mantine/core';
 import { createContext, useContext } from 'react';
 import type { CurlFaceAlign } from '../CurlFace/CurlFace';
+import type { TurnOrigin } from '../flip/geometry';
 
 /**
  * Props a `<Book>` provides as defaults to every `<Book.Page>` (the classic
@@ -33,6 +34,12 @@ export interface BookInheritableProps {
   swipeTimeThreshold?: number;
   /** On touch, wait for a horizontal-bias gesture before claiming the drag. */
   mobileScrollSupport?: boolean;
+  /**
+   * Where a programmatic turn (arrows, a `page` change) pretends to grab the
+   * free edge: `'bottom'` / `'top'` curl from that corner, `'middle'` folds
+   * the page straight over. @default 'bottom'
+   */
+  turnOrigin?: TurnOrigin;
 }
 
 /** The full value a `<Book>` provides: the inheritable props plus the variant. */

@@ -69,9 +69,10 @@ with its own `width` / `height` and turns like a single sheet. Inside a
 
 Because `page` is controlled, the book can be driven entirely from outside —
 arrows, a pagination, keyboard shortcuts. A programmatic page change runs the
-same corner-curl settle animation as a completed drag, and `flippingTime`
-sets its speed (tune it below). Dragging the pages keeps working alongside
-the controls.
+same settle animation as a completed drag: `turnOrigin` picks the simulated
+grab point — `bottom` or `top` curl from that corner with a diagonal crease,
+`middle` folds the page straight over — and `flippingTime` sets the speed
+(tune both below). Dragging the pages keeps working alongside the controls.
 
 <Demo data={demos.groupControls} />
 

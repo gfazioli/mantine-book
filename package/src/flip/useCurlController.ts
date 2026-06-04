@@ -16,6 +16,9 @@ import {
   type Point,
   type ReflectionFold,
   shouldCompleteFold,
+  turnAnchorY,
+  type TurnOrigin,
+  turnTargetY,
 } from './geometry';
 
 export interface FoldView {
@@ -46,6 +49,8 @@ export interface CurlControllerOptions {
    * update this value.
    */
   flipped?: boolean;
+  /** Simulated grab point of a programmatic (controlled) turn. @default 'bottom' */
+  turnOrigin?: TurnOrigin;
   /** The play-zone root element — used to map pointer → page-local coords. */
   rootRef: RefObject<HTMLDivElement | null>;
   onFold?: (info: { progress: number; phase: 'move' | 'settle' }) => void;
@@ -88,6 +93,7 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
     mobileScrollSupport,
     disabled,
     flipped: flippedProp,
+    turnOrigin = 'bottom',
     rootRef,
     onFold,
     onFlip,
@@ -115,21 +121,27 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
 
   // Controlled resting side: when the owner changes `flipped` (arrows, a
   // Group jumping to a page), run the SAME settle animation as a completed
-  // drag — a bottom-corner grab on the current free edge swept across to the
-  // opposite edge. The initial value never animates (the ref starts in sync).
+  // drag — a simulated grab on the current free edge (at `turnOrigin`) swept
+  // across to the opposite edge. Corner grabs arc toward the page middle so
+  // the crease tilts like a real corner curl; a middle grab folds straight
+  // over. The initial value never animates (the ref starts in sync).
   useEffect(() => {
     if (flippedProp === undefined || flippedProp === flippedRef.current) {
       return;
     }
     animator.stop();
     const wasFlipped = flippedRef.current;
-    const anchor: Point = { x: wasFlipped ? -W : W, y: H };
+    const anchor: Point = { x: wasFlipped ? -W : W, y: turnAnchorY(turnOrigin, H) };
     anchorRef.current = anchor;
-    const to: Point = { x: -anchor.x, y: anchor.y };
+    const toX = -anchor.x;
     animator.start({
       duration: flippingTime,
       onProgress: (eased) => {
-        const t: Point = { x: anchor.x + (to.x - anchor.x) * eased, y: anchor.y };
+        const raw: Point = {
+          x: anchor.x + (toX - anchor.x) * eased,
+          y: turnTargetY(turnOrigin, eased, H),
+        };
+        const t = clampReflectionTarget(anchor, raw, W, H);
         const f = computeReflectionFold(anchor, t, W, H);
         setBoth(f, wasFlipped, signedCurl(anchor, t));
         if (f) {

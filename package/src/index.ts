@@ -21,4 +21,4 @@ export type { CurlFaceAlign, CurlFaceProps } from './CurlFace/CurlFace';
 export type { CurlFactory, CurlProps, CurlStylesNames } from './Curl/Curl';
 
 // Pure flip math — exported for advanced consumers.
-export type { Point, ReflectionFold } from './flip/geometry';
+export type { Point, ReflectionFold, TurnOrigin } from './flip/geometry';

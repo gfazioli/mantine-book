@@ -1,5 +1,5 @@
-import { Book, type BookPageData } from '@gfazioli/mantine-book';
-import { ActionIcon, Badge, Group, Slider, Stack } from '@mantine/core';
+import { Book, type BookPageData, type TurnOrigin } from '@gfazioli/mantine-book';
+import { ActionIcon, Badge, Group, SegmentedControl, Slider, Stack } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { useState } from 'react';
@@ -30,7 +30,9 @@ function Demo() {
 
   return (
     <>
-      <Book width={260} height={360} page={page} onPageChange={setPage} pages={pages} />
+      {/* turnOrigin: where a programmatic turn grabs the page —
+          'bottom' / 'top' corner curl, 'middle' straight fold */}
+      <Book width={260} height={360} turnOrigin="bottom" page={page} onPageChange={setPage} pages={pages} />
 
       <Group justify="center">
         <ActionIcon
@@ -73,6 +75,7 @@ function Demo() {
   const [page, setPage] = useState(0);
   const [variant, setVariant] = useState<CurlVariant>('flat');
   const [flippingTime, setFlippingTime] = useState(600);
+  const [turnOrigin, setTurnOrigin] = useState<TurnOrigin>('bottom');
   const lastFace = PAGES.length * 2 - 1;
 
   return (
@@ -81,6 +84,7 @@ function Demo() {
         key={variant}
         variant={variant}
         flippingTime={flippingTime}
+        turnOrigin={turnOrigin}
         width={260}
         height={360}
         page={page}
@@ -125,6 +129,13 @@ function Demo() {
             value={flippingTime}
             onChange={setFlippingTime}
             label={(value) => `${value} ms`}
+          />
+        </Control>
+        <Control label="Turn origin">
+          <SegmentedControl
+            value={turnOrigin}
+            onChange={(next) => setTurnOrigin(next as TurnOrigin)}
+            data={['top', 'middle', 'bottom']}
           />
         </Control>
         <VariantControl value={variant} onChange={setVariant} />
