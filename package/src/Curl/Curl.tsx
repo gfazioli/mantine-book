@@ -15,7 +15,12 @@ import {
 } from '@mantine/core';
 import React, { lazy, Suspense, useCallback, useId, useMemo, useRef, useState } from 'react';
 import { CurlFace, type CurlFaceAlign, type CurlFaceProps } from '../CurlFace/CurlFace';
-import { computeFoldShadow, type Point, pointsToCssPolygon } from '../flip/geometry';
+import {
+  computeFoldShadow,
+  type Point,
+  pointsToCssPolygon,
+  type TurnOrigin,
+} from '../flip/geometry';
 import { useCurlController } from '../flip/useCurlController';
 import classes from './Curl.module.css';
 
@@ -87,6 +92,15 @@ export interface CurlBaseProps {
    * @default 'play-zone'
    */
   grabZone?: 'play-zone' | 'sheet';
+
+  /**
+   * Where a programmatic (controlled) turn pretends to grab the free edge:
+   * `'bottom'` / `'top'` curl from that corner with a diagonal crease,
+   * `'middle'` folds the page straight over. Only affects turns driven by the
+   * `flipped` / `page` state — a real drag always follows the pointer.
+   * @default 'bottom'
+   */
+  turnOrigin?: TurnOrigin;
 
   /** Duration in ms of the settle animation after release. @default 600 */
   flippingTime?: number;
@@ -220,6 +234,7 @@ export const Curl = factory<CurlFactory>((_props) => {
     disabled,
     flipped: flippedProp,
     grabZone,
+    turnOrigin,
     flippingTime,
     flipThreshold,
     swipeDistance,
@@ -289,6 +304,7 @@ export const Curl = factory<CurlFactory>((_props) => {
     mobileScrollSupport,
     disabled,
     flipped: flippedProp,
+    turnOrigin,
     rootRef,
     onFold,
     onFlip,

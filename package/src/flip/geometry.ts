@@ -255,3 +255,32 @@ export function pointsToCssPolygon(points: Point[], unit: 'px' | '%' = 'px'): st
   const parts = points.map((p) => `${p.x.toFixed(3)}${unit} ${p.y.toFixed(3)}${unit}`).join(', ');
   return `polygon(${parts})`;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Programmatic turn path                                             */
+/* ------------------------------------------------------------------ */
+
+/** Where a programmatic page turn pretends to grab the free edge. */
+export type TurnOrigin = 'top' | 'middle' | 'bottom';
+
+/** Y of the simulated grab point on the free edge for a programmatic turn. */
+export function turnAnchorY(origin: TurnOrigin, height: number): number {
+  return origin === 'top' ? 0 : origin === 'middle' ? height / 2 : height;
+}
+
+/**
+ * Y of the simulated pointer mid-turn. A corner grab arcs toward the page
+ * middle (a sine bump peaking at half-turn) so the crease tilts diagonally
+ * like a real corner curl, then lands back on the edge; a middle grab keeps a
+ * constant Y, which folds the page over with a straight vertical crease.
+ */
+export function turnTargetY(origin: TurnOrigin, eased: number, height: number): number {
+  const lift = Math.sin(Math.max(0, Math.min(1, eased)) * Math.PI) * height * 0.5;
+  if (origin === 'top') {
+    return lift;
+  }
+  if (origin === 'bottom') {
+    return height - lift;
+  }
+  return height / 2;
+}

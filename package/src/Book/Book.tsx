@@ -112,6 +112,7 @@ const INHERITABLE: (keyof BookContextValue)[] = [
   'swipeDistance',
   'swipeTimeThreshold',
   'mobileScrollSupport',
+  'turnOrigin',
 ];
 
 /* ------------------------------------------------------------------ */
@@ -158,6 +159,7 @@ export const Book = factory<BookFactory>((_props) => {
     flipThreshold,
     swipeDistance,
     swipeTimeThreshold,
+    turnOrigin,
     mobileScrollSupport,
     ...others
   } = props;
@@ -191,6 +193,7 @@ export const Book = factory<BookFactory>((_props) => {
     swipeDistance,
     swipeTimeThreshold,
     mobileScrollSupport,
+    turnOrigin,
   };
   const ctxValue: BookContextValue = {};
   for (const key of INHERITABLE) {

@@ -34,6 +34,7 @@ const INHERITABLE: (keyof BookContextValue)[] = [
   'swipeDistance',
   'swipeTimeThreshold',
   'mobileScrollSupport',
+  'turnOrigin',
 ];
 
 type BookPageComponent = ((
