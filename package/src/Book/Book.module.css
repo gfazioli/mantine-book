@@ -1,0 +1,26 @@
+/*
+ * Book — a multi-page stack of curling pages.
+ *
+ * The book root spans the same 2W × H play-zone as a single page; every page
+ * is absolutely stacked at the origin and the per-page z-index is applied
+ * inline from React (it changes with the current page / active fold).
+ */
+
+.root {
+  position: relative;
+  width: calc(var(--curl-page-width) * 2);
+  height: var(--curl-page-height);
+}
+
+.page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* The wrapper must never swallow pointer events meant for a page on a
+     LOWER layer: each page root is already a pass-through surface and only
+     its resting sheet accepts the pointer, so the wrapper stays transparent
+     too (otherwise, with stacked wrappers, the upper page's wrapper would
+     capture grabs aimed at the other half — e.g. turning back at the spread
+     where the two stacks have the same z). */
+  pointer-events: none;
+}
