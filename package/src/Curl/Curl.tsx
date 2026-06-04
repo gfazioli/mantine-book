@@ -41,10 +41,10 @@ export type CurlCssVariables = {
 };
 
 export interface CurlBaseProps {
-  /** Sheet width in CSS px. The play-zone is twice this. @default 300 */
+  /** Page width in CSS px. The play-zone is twice this. @default 300 */
   width?: number;
 
-  /** Sheet height in CSS px. @default 600 */
+  /** Page height in CSS px. @default 600 */
   height?: number;
 
   /** Default content alignment for both faces. @default center / center */
@@ -71,6 +71,23 @@ export interface CurlBaseProps {
   /** Disable the drag interaction entirely (resting only). @default false */
   disabled?: boolean;
 
+  /**
+   * Controlled resting side: `false` rests in the right half, `true` in the
+   * left half (turned). When set, external changes run an animated turn onto
+   * the new side; use together with `onFlip` to own the state (the Book does
+   * this for each page).
+   */
+  flipped?: boolean;
+
+  /**
+   * Pointer surface used to start a fold. `'play-zone'` (default) grabs from
+   * anywhere in the 2×W play-zone; `'sheet'` only from the resting page
+   * itself — inside a Book this is what routes the right half to the current
+   * page and the left half to the previously turned one.
+   * @default 'play-zone'
+   */
+  grabZone?: 'play-zone' | 'sheet';
+
   /** Duration in ms of the settle animation after release. @default 600 */
   flippingTime?: number;
 
@@ -92,7 +109,7 @@ export interface CurlBaseProps {
   /** Called once when a release settle finishes, with the resting state. */
   onFlip?: (info: { flipped: boolean }) => void;
 
-  /** Faces — `<Curl.Front>` and optional `<Curl.Back>`. */
+  /** Faces — Book.Page.Front and the optional Book.Page.Back. */
   children?: React.ReactNode;
 }
 
@@ -123,6 +140,7 @@ const defaultProps: Partial<CurlProps> = {
   shadowColor: 'dark.9',
   pageBackground: 'white',
   disabled: false,
+  grabZone: 'play-zone',
   flippingTime: 600,
   flipThreshold: 50,
   swipeDistance: 30,
@@ -200,6 +218,8 @@ export const Curl = factory<CurlFactory>((_props) => {
     revealBackground: _rb,
     curlRadius,
     disabled,
+    flipped: flippedProp,
+    grabZone,
     flippingTime,
     flipThreshold,
     swipeDistance,
@@ -268,6 +288,7 @@ export const Curl = factory<CurlFactory>((_props) => {
     swipeTimeThreshold,
     mobileScrollSupport,
     disabled,
+    flipped: flippedProp,
     rootRef,
     onFold,
     onFlip,
@@ -291,8 +312,20 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   // No per-face mirror: the reflection matrix (det −1) mirrors the lifted flap
   // automatically; the resting face is flat and unmirrored.
-  const frontNode = <div {...getStyles('face', { style: frontFlex })}>{faces.front?.content}</div>;
-  const backNode = <div {...getStyles('face', { style: backFlex })}>{faces.back?.content}</div>;
+  // dragstart is prevented so a grab on an image starts the page-turn instead
+  // of the browser's native image drag (the CSS -webkit-user-drag handles
+  // WebKit; this covers Firefox).
+  const preventNativeDrag = useCallback((event: React.DragEvent) => event.preventDefault(), []);
+  const frontNode = (
+    <div {...getStyles('face', { style: frontFlex })} onDragStart={preventNativeDrag}>
+      {faces.front?.content}
+    </div>
+  );
+  const backNode = (
+    <div {...getStyles('face', { style: backFlex })} onDragStart={preventNativeDrag}>
+      {faces.back?.content}
+    </div>
+  );
 
   // The face lying flat at rest, and the one shown on the lifting flap.
   const restFaceNode = flipped ? backNode : frontNode;
@@ -349,10 +382,15 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   /* --- Render --------------------------------------------------- */
 
+  // grabZone="sheet": the play-zone root lets pointers pass through (so the
+  // other half can belong to a sibling sheet in a Group); only the resting
+  // sheet itself starts a fold — its pointerdown bubbles to the root handlers.
+  const sheetGrab = grabZone === 'sheet';
+
   return (
     <Box
       ref={setRootRef}
-      {...getStyles('root')}
+      {...getStyles('root', { style: sheetGrab ? { pointerEvents: 'none' } : undefined })}
       {...others}
       {...dragHandlers}
       mod={[{ folding, flipped, disabled }, mod]}
@@ -364,6 +402,9 @@ export const Curl = factory<CurlFactory>((_props) => {
         {...getStyles('restSheet', {
           style: {
             left: restLeft,
+            // Re-enable pointers on the resting half when the root is a
+            // pass-through surface (grabZone="sheet").
+            ...(sheetGrab && !disabled ? { pointerEvents: 'auto' } : null),
             // While the WebGL cone is drawing, it shows the whole page itself.
             ...(webglActive
               ? { display: 'none' }
@@ -465,9 +506,10 @@ Curl.displayName = 'Curl';
  * Two distinct marker components (each its own function object so the
  * `__curlSlot` tag and `displayName` don't collide). Both render nothing —
  * `Curl` reads their props via `React.Children`. Typed as `CurlFace` so the
- * factory's `staticComponents` signature is satisfied.
+ * factory's `staticComponents` signature is satisfied. Exported so `Book.Page`
+ * can mint its own `Front`/`Back` markers with proper display names.
  */
-function makeFaceMarker(slot: 'front' | 'back', name: string): typeof CurlFace {
+export function makeFaceMarker(slot: 'front' | 'back', name: string): typeof CurlFace {
   const Marker = (_props: CurlFaceProps): null => null;
   Marker.displayName = name;
   (Marker as typeof Marker & { __curlSlot: 'front' | 'back' }).__curlSlot = slot;

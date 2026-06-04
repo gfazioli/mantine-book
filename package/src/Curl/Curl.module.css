@@ -43,6 +43,9 @@
   box-sizing: border-box;
   background: var(--curl-page-background);
   z-index: 1;
+  /* The grab may start on the sheet itself (grabZone="sheet"), so the sheet
+     must allow vertical panning the same way the play-zone root does. */
+  touch-action: pan-y;
 }
 
 .curlSheet {
@@ -81,4 +84,8 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  /* The page-turn gesture must win over the browser's native image drag
+     (which would hijack the pointer and cancel the fold mid-grab). The
+     dragstart is also prevented in React for Firefox, which ignores this. */
+  -webkit-user-drag: none;
 }
