@@ -16,8 +16,9 @@ export type { BookPageProps } from './Book/BookPage';
 export type { CurlFaceAlign, CurlFaceProps } from './CurlFace/CurlFace';
 
 // Styles API factory of a single page (Book.Page forwards to the internal
-// Curl engine, whose selectors are the page's DOM).
-export type { CurlFactory, CurlStylesNames } from './Curl/Curl';
+// Curl engine, whose selectors are the page's DOM). CurlProps is the base of
+// the exported BookPageProps, so it stays nameable for consumers.
+export type { CurlFactory, CurlProps, CurlStylesNames } from './Curl/Curl';
 
 // Pure flip math — exported for advanced consumers.
 export type { Point, ReflectionFold } from './flip/geometry';

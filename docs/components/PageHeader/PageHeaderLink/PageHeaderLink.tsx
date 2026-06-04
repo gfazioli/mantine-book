@@ -16,7 +16,8 @@ export function PageHeaderLink({ label, icon, children, link }: PageHeaderLinkPr
       return;
     }
     event.preventDefault();
-    document.querySelector(link)?.scrollIntoView({ behavior: 'smooth' });
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.querySelector(link)?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
   };
 
   const content = link ? (

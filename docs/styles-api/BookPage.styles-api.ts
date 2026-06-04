@@ -3,7 +3,7 @@ import type { StylesApiData } from '../components/styles-api.types';
 
 export const BookPageStylesApi: StylesApiData<CurlFactory> = {
   selectors: {
-    root: 'Page play-zone (twice the page width) with 3D perspective; gesture target for the drag',
+    root: 'Page play-zone (twice the page width) with 3D perspective; hosts the drag handlers — standalone it is the pointer surface, while inside a Book it is pass-through and the resting sheet receives the pointer',
     restSheet:
       'The face lying flat at rest (Front in the right half; Back in the left half once turned)',
     curlSheet: 'The lifting flap showing the opposite face (clipped + rotated per frame)',
