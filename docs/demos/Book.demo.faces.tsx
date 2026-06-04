@@ -1,4 +1,4 @@
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 import { Switch } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
 import { useState } from 'react';
@@ -12,18 +12,20 @@ import {
   FRONT_COLOR,
   VariantControl,
   VISIBLE_OVERFLOW,
-} from './_curl-demo-kit';
+} from './_book-demo-kit';
 
 const code = `
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 
 function Demo() {
   return (
-    <Curl width={260} height={360}>
-      <Curl.Front>Front A</Curl.Front>
-      {/* Curl.Back is optional — omit it and the back renders blank */}
-      <Curl.Back>Back B</Curl.Back>
-    </Curl>
+    <Book width={260} height={360}>
+      <Book.Page>
+        <Book.Page.Front>Front A</Book.Page.Front>
+        {/* Book.Page.Back is optional — omit it and the back renders blank */}
+        <Book.Page.Back>Back B</Book.Page.Back>
+      </Book.Page>
+    </Book>
   );
 }
 `;
@@ -35,21 +37,23 @@ function Demo() {
   return (
     <>
       <DemoStage>
-        <Curl key={`${variant}-${withBack}`} variant={variant} width={260} height={360}>
-          <Curl.Front>
-            <Face label="Front A" color={FRONT_COLOR} />
-          </Curl.Front>
-          {withBack && (
-            <Curl.Back>
-              <Face label="Back B" color={BACK_COLOR} />
-            </Curl.Back>
-          )}
-        </Curl>
+        <Book key={`${variant}-${withBack}`} variant={variant} width={260} height={360}>
+          <Book.Page>
+            <Book.Page.Front>
+              <Face label="Front A" color={FRONT_COLOR} />
+            </Book.Page.Front>
+            {withBack && (
+              <Book.Page.Back>
+                <Face label="Back B" color={BACK_COLOR} />
+              </Book.Page.Back>
+            )}
+          </Book.Page>
+        </Book>
       </DemoStage>
 
       <ControlBar>
         <VariantControl value={variant} onChange={setVariant} />
-        <Control label="Include Curl.Back">
+        <Control label="Include Book.Page.Back">
           <Switch
             checked={withBack}
             onChange={(event) => setWithBack(event.currentTarget.checked)}

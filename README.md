@@ -20,12 +20,15 @@
 This component is created on top of the [Mantine](https://mantine.dev/) library.
 It requires **Mantine 9.x** and **React 19**.
 
-[Mantine Book](https://gfazioli.github.io/mantine-book/) renders a realistic iBooks-style page-curl. `Curl` folds a single sheet of paper with two faces — `<Curl.Front>` and `<Curl.Back>` — by dragging any point of its free edge in any direction. It offers two rendering paths: a pure-DOM **flat** reflection fold (the default, interactive at rest and SSR-safe) and a true 3D **rounded** WebGL curl with a lit specular ridge. Any JSX goes inside a face — text, images, MDX, even a canvas. It is the foundation for a future page-flip `Book` built as a stack of `Curl`s.
+[Mantine Book](https://gfazioli.github.io/mantine-book/) renders a realistic iBooks-style book. `Book` stacks two-sided pages — each a `<Book.Page>` with `<Book.Page.Front>` and `<Book.Page.Back>` — that you turn by dragging any point of the free edge in any direction, or programmatically through the controlled `page` state. It offers two rendering paths: a pure-DOM **flat** reflection fold (the default, interactive at rest and SSR-safe) and a true 3D **rounded** WebGL curl with a lit specular ridge. Any JSX goes inside a face — text, images, MDX, even a canvas.
 
 ## Features
 
-- 📄 **Single-sheet curl**: grab any point of the free edge and drag in any direction — a perpendicular-bisector reflection fold, the generalization of a corner page-turn
-- 🎯 **Compound API**: `<Curl><Curl.Front>…</Curl.Front><Curl.Back>…</Curl.Back></Curl>` — any React node as a face; the back is optional (renders blank when omitted)
+- 📖 **Multi-page book**: stack any number of two-sided pages; drag the right half to turn forward, the left half to turn back — the page beneath shows through the curl
+- 🎯 **Compound API**: `<Book><Book.Page><Book.Page.Front>…</Book.Page.Front><Book.Page.Back>…</Book.Page.Back></Book.Page></Book>` — or the data-driven `pages={[{ front, back }]}` form
+- 🧭 **Controlled navigation**: `page` / `defaultPage` / `onPageChange` with face-based indices — drive the book from arrows, pagination or keyboard; programmatic turns animate like a drag
+- 🧬 **Inherited props**: visual and gesture props set on the Book cascade to every page via optional context, and any page can override them locally
+- 📄 **Physical page curl**: grab any point of the free edge and drag in any direction — a perpendicular-bisector reflection fold, the generalization of a corner page-turn
 - 🧊 **Two variants**: `flat` (pure DOM + CSS, the universal fallback) and `rounded` (a true 3D curl on a WebGL canvas, with a soft specular ridge and a `curlRadius` control)
 - 🖱️ **Drag, swipe, release**: PointerEvents unify mouse and touch; a release settles open or back to rest past `flipThreshold`; `mobileScrollSupport` keeps page scroll working
 - ⚡ **Quiescent at rest**: no perpetual `requestAnimationFrame` — rAF runs only during a drag or the release settle
@@ -59,14 +62,20 @@ import '@gfazioli/mantine-book/styles.css';
 ## Usage
 
 ```tsx
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 
 function Demo() {
   return (
-    <Curl width={300} height={420} variant="rounded">
-      <Curl.Front>Front A</Curl.Front>
-      <Curl.Back>Back B</Curl.Back>
-    </Curl>
+    <Book width={300} height={420} variant="rounded">
+      <Book.Page>
+        <Book.Page.Front>Page 1</Book.Page.Front>
+        <Book.Page.Back>Page 2</Book.Page.Back>
+      </Book.Page>
+      <Book.Page>
+        <Book.Page.Front>Page 3</Book.Page.Front>
+        <Book.Page.Back>Page 4</Book.Page.Back>
+      </Book.Page>
+    </Book>
   );
 }
 ```

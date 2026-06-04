@@ -1,0 +1,143 @@
+import { Book, type BookPageData } from '@gfazioli/mantine-book';
+import { ActionIcon, Badge, Group, Slider, Stack } from '@mantine/core';
+import { MantineDemo } from '@mantinex/demo';
+import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+import { useState } from 'react';
+import {
+  Control,
+  ControlBar,
+  type CurlVariant,
+  Face,
+  VariantControl,
+  VISIBLE_OVERFLOW,
+} from './_book-demo-kit';
+
+const code = `
+import { useState } from 'react';
+import { Book, type BookPageData } from '@gfazioli/mantine-book';
+import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+import { ActionIcon, Group } from '@mantine/core';
+
+const pages: BookPageData[] = [
+  { front: <Cover />, back: <Intro /> },
+  { front: <ChapterOne />, back: <ChapterTwo /> },
+  // ...
+];
+
+function Demo() {
+  const [page, setPage] = useState(0);
+  const lastFace = pages.length * 2 - 1;
+
+  return (
+    <>
+      <Book width={260} height={360} page={page} onPageChange={setPage} pages={pages} />
+
+      <Group justify="center">
+        <ActionIcon
+          variant="default"
+          radius="xl"
+          size="lg"
+          disabled={page === 0}
+          onClick={() => setPage((current) => Math.max(0, current - 2))}
+        >
+          <IconChevronLeft size={18} />
+        </ActionIcon>
+        <ActionIcon
+          variant="default"
+          radius="xl"
+          size="lg"
+          disabled={page === lastFace}
+          onClick={() => setPage((current) => (current === 0 ? 1 : Math.min(lastFace, current + 2)))}
+        >
+          <IconChevronRight size={18} />
+        </ActionIcon>
+      </Group>
+    </>
+  );
+}
+`;
+
+const COLORS: Array<{ front: string; back: string }> = [
+  { front: '#4263eb', back: '#3b5bdb' },
+  { front: '#e8590c', back: '#d9480f' },
+  { front: '#2f9e44', back: '#2b8a3e' },
+  { front: '#9c36b5', back: '#862e9c' },
+];
+
+const PAGES: BookPageData[] = COLORS.map((colors, index) => ({
+  front: <Face label={`Page ${index * 2 + 1}`} color={colors.front} />,
+  back: <Face label={`Page ${index * 2 + 2}`} color={colors.back} />,
+}));
+
+function Demo() {
+  const [page, setPage] = useState(0);
+  const [variant, setVariant] = useState<CurlVariant>('flat');
+  const [flippingTime, setFlippingTime] = useState(600);
+  const lastFace = PAGES.length * 2 - 1;
+
+  return (
+    <Stack align="center" gap="md">
+      <Book
+        key={variant}
+        variant={variant}
+        flippingTime={flippingTime}
+        width={260}
+        height={360}
+        page={page}
+        onPageChange={setPage}
+        pages={PAGES}
+      />
+
+      <Group justify="center" gap="md">
+        <ActionIcon
+          variant="default"
+          radius="xl"
+          size="lg"
+          aria-label="Previous page"
+          disabled={page === 0}
+          onClick={() => setPage((current) => Math.max(0, current - 2))}
+        >
+          <IconChevronLeft size={18} />
+        </ActionIcon>
+        <Badge variant="light" size="lg" w={110} ta="center">
+          page {page} / {lastFace}
+        </Badge>
+        <ActionIcon
+          variant="default"
+          radius="xl"
+          size="lg"
+          aria-label="Next page"
+          disabled={page === lastFace}
+          onClick={() =>
+            setPage((current) => (current === 0 ? 1 : Math.min(lastFace, current + 2)))
+          }
+        >
+          <IconChevronRight size={18} />
+        </ActionIcon>
+      </Group>
+
+      <ControlBar>
+        <Control label={`Flipping time — ${flippingTime} ms`} w={220}>
+          <Slider
+            min={150}
+            max={2000}
+            step={50}
+            value={flippingTime}
+            onChange={setFlippingTime}
+            label={(value) => `${value} ms`}
+          />
+        </Control>
+        <VariantControl value={variant} onChange={setVariant} />
+      </ControlBar>
+    </Stack>
+  );
+}
+
+export const groupControls: MantineDemo = {
+  type: 'code',
+  component: Demo,
+  code,
+  defaultExpanded: false,
+  centered: true,
+  overflow: VISIBLE_OVERFLOW,
+};

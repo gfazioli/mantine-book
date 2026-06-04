@@ -1,4 +1,4 @@
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 import { SegmentedControl } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
 import { useState } from 'react';
@@ -9,19 +9,21 @@ import {
   DemoStage,
   VariantControl,
   VISIBLE_OVERFLOW,
-} from './_curl-demo-kit';
+} from './_book-demo-kit';
 
 type Align = 'start' | 'center' | 'end';
 
 const code = `
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 
 function Demo() {
   return (
-    <Curl width={260} height={360} align={{ horizontal: 'center', vertical: 'center' }}>
-      <Curl.Front>Front</Curl.Front>
-      <Curl.Back>Back</Curl.Back>
-    </Curl>
+    <Book width={260} height={360} align={{ horizontal: 'center', vertical: 'center' }}>
+      <Book.Page>
+        <Book.Page.Front>Front</Book.Page.Front>
+        <Book.Page.Back>Back</Book.Page.Back>
+      </Book.Page>
+    </Book>
   );
 }
 `;
@@ -51,7 +53,7 @@ function Demo() {
   return (
     <>
       <DemoStage>
-        <Curl
+        <Book
           key={variant}
           variant={variant}
           width={260}
@@ -59,13 +61,15 @@ function Demo() {
           pageBackground="#f1f3f5"
           align={{ horizontal, vertical }}
         >
-          <Curl.Front>
-            <Chip label="Front" />
-          </Curl.Front>
-          <Curl.Back>
-            <Chip label="Back" />
-          </Curl.Back>
-        </Curl>
+          <Book.Page>
+            <Book.Page.Front>
+              <Chip label="Front" />
+            </Book.Page.Front>
+            <Book.Page.Back>
+              <Chip label="Back" />
+            </Book.Page.Back>
+          </Book.Page>
+        </Book>
       </DemoStage>
 
       <ControlBar>

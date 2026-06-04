@@ -1,4 +1,4 @@
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 import { Code, Group, Text } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
 import { useState } from 'react';
@@ -11,22 +11,22 @@ import {
   FRONT_COLOR,
   VariantControl,
   VISIBLE_OVERFLOW,
-} from './_curl-demo-kit';
+} from './_book-demo-kit';
 
 const code = `
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 
 function Demo() {
   return (
-    <Curl
-      width={260}
-      height={360}
-      onFold={({ progress, phase }) => console.log('fold', progress, phase)}
-      onFlip={({ flipped }) => console.log('flip', flipped)}
-    >
-      <Curl.Front>Front A</Curl.Front>
-      <Curl.Back>Back B</Curl.Back>
-    </Curl>
+    <Book width={260} height={360}>
+      <Book.Page
+        onFold={({ progress, phase }) => console.log('fold', progress, phase)}
+        onFlip={({ flipped }) => console.log('flip', flipped)}
+      >
+        <Book.Page.Front>Front A</Book.Page.Front>
+        <Book.Page.Back>Back B</Book.Page.Back>
+      </Book.Page>
+    </Book>
   );
 }
 `;
@@ -40,24 +40,22 @@ function Demo() {
   return (
     <>
       <DemoStage>
-        <Curl
-          key={variant}
-          variant={variant}
-          width={260}
-          height={360}
-          onFold={(info) => {
-            setProgress(info.progress);
-            setPhase(info.phase);
-          }}
-          onFlip={(info) => setFlipped(info.flipped)}
-        >
-          <Curl.Front>
-            <Face label="Front A" color={FRONT_COLOR} />
-          </Curl.Front>
-          <Curl.Back>
-            <Face label="Back B" color={BACK_COLOR} />
-          </Curl.Back>
-        </Curl>
+        <Book key={variant} variant={variant} width={260} height={360}>
+          <Book.Page
+            onFold={(info) => {
+              setProgress(info.progress);
+              setPhase(info.phase);
+            }}
+            onFlip={(info) => setFlipped(info.flipped)}
+          >
+            <Book.Page.Front>
+              <Face label="Front A" color={FRONT_COLOR} />
+            </Book.Page.Front>
+            <Book.Page.Back>
+              <Face label="Back B" color={BACK_COLOR} />
+            </Book.Page.Back>
+          </Book.Page>
+        </Book>
       </DemoStage>
 
       <ControlBar>

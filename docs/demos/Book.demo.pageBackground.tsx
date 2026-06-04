@@ -1,4 +1,4 @@
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 import { ColorInput } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
 import { useState } from 'react';
@@ -9,17 +9,19 @@ import {
   DemoStage,
   VariantControl,
   VISIBLE_OVERFLOW,
-} from './_curl-demo-kit';
+} from './_book-demo-kit';
 
 const code = `
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 
 function Demo() {
   return (
-    <Curl pageBackground="#fff9db" width={260} height={360}>
-      <Curl.Front>Front</Curl.Front>
-      <Curl.Back>Back</Curl.Back>
-    </Curl>
+    <Book pageBackground="#fff9db" width={260} height={360}>
+      <Book.Page>
+        <Book.Page.Front>Front</Book.Page.Front>
+        <Book.Page.Back>Back</Book.Page.Back>
+      </Book.Page>
+    </Book>
   );
 }
 `;
@@ -36,20 +38,22 @@ function Demo() {
   return (
     <>
       <DemoStage>
-        <Curl
+        <Book
           key={variant}
           variant={variant}
           pageBackground={pageBackground}
           width={260}
           height={360}
         >
-          <Curl.Front>
-            <Label text="Front" />
-          </Curl.Front>
-          <Curl.Back>
-            <Label text="Back" />
-          </Curl.Back>
-        </Curl>
+          <Book.Page>
+            <Book.Page.Front>
+              <Label text="Front" />
+            </Book.Page.Front>
+            <Book.Page.Back>
+              <Label text="Back" />
+            </Book.Page.Back>
+          </Book.Page>
+        </Book>
       </DemoStage>
 
       <ControlBar>
