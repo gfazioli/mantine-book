@@ -1,4 +1,4 @@
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 import { Slider, Switch } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
 import { useState } from 'react';
@@ -12,19 +12,21 @@ import {
   FRONT_COLOR,
   VariantControl,
   VISIBLE_OVERFLOW,
-} from './_curl-demo-kit';
+} from './_book-demo-kit';
 
 const code = `
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 
 function Demo() {
-  // On release: drag past flipThreshold (% of a full turn) and the sheet
+  // On release: drag past flipThreshold (% of a full turn) and the page
   // settles open over flippingTime ms; below it, it settles back to rest.
   return (
-    <Curl flippingTime={600} flipThreshold={50} width={260} height={360}>
-      <Curl.Front>Front A</Curl.Front>
-      <Curl.Back>Back B</Curl.Back>
-    </Curl>
+    <Book flippingTime={600} flipThreshold={50} width={260} height={360}>
+      <Book.Page>
+        <Book.Page.Front>Front A</Book.Page.Front>
+        <Book.Page.Back>Back B</Book.Page.Back>
+      </Book.Page>
+    </Book>
   );
 }
 `;
@@ -38,7 +40,7 @@ function Demo() {
   return (
     <>
       <DemoStage>
-        <Curl
+        <Book
           key={variant}
           variant={variant}
           flippingTime={flippingTime}
@@ -47,13 +49,15 @@ function Demo() {
           width={260}
           height={360}
         >
-          <Curl.Front>
-            <Face label="Front A" color={FRONT_COLOR} />
-          </Curl.Front>
-          <Curl.Back>
-            <Face label="Back B" color={BACK_COLOR} />
-          </Curl.Back>
-        </Curl>
+          <Book.Page>
+            <Book.Page.Front>
+              <Face label="Front A" color={FRONT_COLOR} />
+            </Book.Page.Front>
+            <Book.Page.Back>
+              <Face label="Back B" color={BACK_COLOR} />
+            </Book.Page.Back>
+          </Book.Page>
+        </Book>
       </DemoStage>
 
       <ControlBar>

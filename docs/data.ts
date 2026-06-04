@@ -27,7 +27,7 @@ export interface PackageData {
 export const PACKAGE_DATA: PackageData = {
   packageName: '@gfazioli/mantine-book',
   packageDescription:
-    'A realistic iBooks-style page-curl component for React, built on Mantine. Curl a single sheet with two faces by dragging any point of its free edge in any direction — a pure-DOM reflection fold (flat) or a true 3D WebGL curl (rounded).',
+    'A realistic iBooks-style book component for React, built on Mantine. Stack two-sided pages and turn them by dragging any point of the free edge in any direction — a pure-DOM reflection fold (flat) or a true 3D WebGL curl (rounded), with controlled page navigation.',
   mdxFileUrl: 'https://github.com/gfazioli/mantine-book/blob/master/docs/docs.mdx',
   repositoryUrl: 'https://github.com/gfazioli/mantine-book',
   licenseUrl: 'https://github.com/gfazioli/mantine-book/blob/master/LICENSE',

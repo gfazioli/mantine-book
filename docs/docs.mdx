@@ -20,33 +20,79 @@ import '@gfazioli/mantine-book/styles.layer.css';
 
 ## Usage
 
-`Curl` curls a single sheet of paper. It has two faces declared as
-`<Curl.Front>` and `<Curl.Back>` children — grab any point of the sheet's
-free edge and drag in any direction to fold it. The play-zone is twice the
-sheet width: the sheet rests in the right half and sweeps toward the spine
+`Book` renders pages you can turn with a realistic iBooks-style page curl.
+Each `Book.Page` is the physical entity that turns: it always has two sides,
+declared as `Book.Page.Front` and `Book.Page.Back`. Grab any point of the
+page's free edge and drag in any direction to fold it. The play-zone is twice
+the page width: the page rests in the right half and sweeps toward the spine
 (the centre) as it curls; once turned, it rests in the left half and folds
-back the other way.
+back the other way. The simplest book is a single page:
 
 <Demo data={demos.usage} />
 
+## Multi-page books
+
+Stack several pages and the Book behaves like a real book. Drag the right
+half to turn the current page forward and the left half to turn the previous
+one back. While a page curls, the page beneath shows through — the next one
+going forward, the previous one going back. Visual and gesture props set on
+the Book (variant, shadows, timings…) are inherited by every page via
+optional context, and any page can override them locally.
+
+The page state follows the usual Mantine controlled/uncontrolled pattern:
+`page` + `onPageChange` for controlled, `defaultPage` for uncontrolled. The
+index counts faces: page `i` has its front at `2i` and its back at `2i + 1`,
+so `0` shows the closed book and `1` shows the first page turned. Both faces
+of a spread are equivalent as a setter; `onPageChange` reports the first
+visible face in reading order.
+
+<Demo data={demos.group} />
+
+### Data-driven pages
+
+Instead of children, pass a `pages` array of `{ front, back, props? }`
+objects — handy when the book is built from data (a gallery, a CMS, a PDF
+manifest). The optional `props` entry carries per-page overrides and wins
+over the Book's inherited props:
+
+<Demo data={demos.pages} />
+
+### Standalone page
+
+A `Book.Page` also works on its own, outside any `Book` — it sizes itself
+with its own `width` / `height` and turns like a single sheet. Inside a
+`Book`, the book's `width` / `height` apply to every page instead:
+
+<Demo data={demos.standalonePage} />
+
+### External navigation
+
+Because `page` is controlled, the book can be driven entirely from outside —
+arrows, a pagination, keyboard shortcuts. A programmatic page change runs the
+same corner-curl settle animation as a completed drag, and `flippingTime`
+sets its speed (tune it below). Dragging the pages keeps working alongside
+the controls.
+
+<Demo data={demos.groupControls} />
+
 ## Faces
 
-A sheet has two faces, declared as compound children: `<Curl.Front>` (the
-resting side) and `<Curl.Back>` (revealed as the page turns). Each face can
-hold any React node — text, images, MDX, even a `<canvas>` — rendered once and
-owned by React, so event handlers inside a face stay alive.
+A page has two faces, declared as compound children: `Book.Page.Front` (the
+resting side) and `Book.Page.Back` (revealed as the page turns). Each face
+can hold any React node — text, images, MDX, even a `<canvas>` — rendered once
+and owned by React, so event handlers inside a face stay alive.
 
-`Curl.Back` is optional: omit it and the back renders blank (filled with the
-page background). Toggle it below:
+`Book.Page.Back` is optional: omit it and the back renders blank (filled with
+the page background). Toggle it below:
 
 <Demo data={demos.faces} />
 
 ## Content and alignment
 
 Each face clips overflow and centers smaller content by default. Use the
-`align` prop on `<Curl>` for both faces, or per-face on `<Curl.Front>` /
-`<Curl.Back>` to override. It accepts `{ horizontal, vertical }`, each one of
-`start` / `center` / `end`, and only affects content smaller than the face:
+`align` prop on the `Book` for every face, or per-face on `Book.Page.Front` /
+`Book.Page.Back` to override. It accepts `{ horizontal, vertical }`, each one
+of `start` / `center` / `end`, and only affects content smaller than the face:
 
 <Demo data={demos.align} />
 
@@ -54,13 +100,15 @@ Each face clips overflow and centers smaller content by default. Use the
 
 `img`, `svg`, `video` and `canvas` are automatically scaled to fit the face
 (`object-fit: contain`), so oversized artwork is letterboxed rather than
-cropped:
+cropped — or size them to the face with `object-fit: cover` for a full-page
+image:
 
 <Demo data={demos.contentImage} />
 
 ## Variants and curl shape
 
-`Curl` ships two rendering paths, selected with the `variant` prop:
+The page turn ships two rendering paths, selected with the `variant` prop
+(set it on the Book for every page, or per page to mix them):
 
 <Table withTableBorder withColumnBorders my="md">
   <Table.Thead>
@@ -89,7 +137,7 @@ cropped:
 The default `flat` variant needs no canvas and works everywhere. If WebGL is
 unavailable or a face snapshot fails, `rounded` falls back to `flat`
 automatically, so it is always safe to opt in. Switch the variant and drag the
-sheet to compare them:
+page to compare them:
 
 <Demo data={demos.variant} />
 
@@ -97,15 +145,16 @@ sheet to compare them:
 
 `curlRadius` (rounded only, in px, default ~0.32 × width) sets how tightly the
 page wraps: a smaller radius makes a tight roll that turns the page sooner, a
-larger one a gentle, loose curl. Drag the slider, then drag the sheet:
+larger one a gentle, loose curl. Drag the slider, then drag the page:
 
 <Demo data={demos.curlRadius} />
 
 ## Dimensions
 
-`width` and `height` size the sheet in CSS px. The interactive **play-zone is
-twice the width**: the sheet rests in the right half and the curl sweeps left
-toward the spine, so a `width={260}` sheet occupies a `520px`-wide box.
+`width` and `height` size the pages in CSS px, set once on the Book and
+applied to every page. The interactive **play-zone is twice the width**: the
+pages rest in the right half and the curl sweeps left toward the spine, so a
+`width={260}` book occupies a `520px`-wide box.
 
 <Demo data={demos.dimensions} />
 
@@ -126,7 +175,7 @@ the 3D render, which is why there is no separate lighting control.
 ## Page background
 
 `pageBackground` (a `MantineColor` or any CSS color) fills each face behind its
-content, so transparent content sits on a solid sheet.
+content, so transparent content sits on a solid page.
 
 <Demo data={demos.pageBackground} />
 
@@ -136,34 +185,35 @@ reveal layer ships in a future release.
 
 ## Interaction and release
 
-When you release a drag the sheet settles with an animation over `flippingTime`
+When you release a drag the page settles with an animation over `flippingTime`
 ms. `flipThreshold` (0–100, percent of a full turn) is the cutoff: drag past it
-and the sheet completes the turn (showing the Back); below it, it settles back
-to rest. `disabled` removes the drag interaction entirely.
+and the page completes the turn; below it, it settles back to rest. `disabled`
+removes the drag interaction entirely.
 
 <Demo data={demos.release} />
 
 ## Touch gestures
 
-On touch devices `Curl` also recognizes a **swipe** — a quick flick that
-completes the flip even when you release *below* `flipThreshold`. A gesture
-counts as a swipe only when it travels at least `swipeDistance` px in under
-`swipeTimeThreshold` ms, so raising `swipeDistance` (or lowering
+On touch devices the page turn also recognizes a **swipe** — a quick flick
+that completes the turn even when you release *below* `flipThreshold`. A
+gesture counts as a swipe only when it travels at least `swipeDistance` px in
+under `swipeTimeThreshold` ms, so raising `swipeDistance` (or lowering
 `swipeTimeThreshold`) demands a longer / faster flick.
 
 `mobileScrollSupport` (default `true`) keeps vertical page scrolling alive:
-the component waits for a clearly horizontal gesture before claiming the touch,
-so a vertical drag that starts on the sheet still scrolls the page. Set it to
-`false` to capture every touch on the sheet immediately (page scroll from the
-sheet is then blocked).
+the component waits for a clearly horizontal gesture before claiming the
+touch, so a vertical drag that starts on the book still scrolls the page. Set
+it to `false` to capture every touch on the book immediately (page scroll
+from the book is then blocked).
 
 <Demo data={demos.gestures} />
 
 ## Events
 
 `onFold` fires continuously during a drag and the release settle with
-`{ progress, phase }` (`phase` is `'move'` or `'settle'`). `onFlip` fires once
-when a settle finishes, with the resting `{ flipped }` state. Drag the sheet and
-watch the readout:
+`{ progress, phase }` (`phase` is `'move'` or `'settle'`), and `onFlip` fires
+once when a settle finishes, with the resting `{ flipped }` state — both are
+per page, on `Book.Page`. The Book-level `onPageChange` fires when a
+completed turn changes the page. Drag the page and watch the readout:
 
 <Demo data={demos.events} />

@@ -1,4 +1,4 @@
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 import { Slider } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
 import { useState } from 'react';
@@ -10,17 +10,19 @@ import {
   Face,
   FRONT_COLOR,
   VISIBLE_OVERFLOW,
-} from './_curl-demo-kit';
+} from './_book-demo-kit';
 
 const code = `
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 
 function Demo() {
   return (
-    <Curl variant="rounded" curlRadius={90} width={260} height={360}>
-      <Curl.Front>Front A</Curl.Front>
-      <Curl.Back>Back B</Curl.Back>
-    </Curl>
+    <Book variant="rounded" curlRadius={90} width={260} height={360}>
+      <Book.Page>
+        <Book.Page.Front>Front A</Book.Page.Front>
+        <Book.Page.Back>Back B</Book.Page.Back>
+      </Book.Page>
+    </Book>
   );
 }
 `;
@@ -31,14 +33,16 @@ function Demo() {
   return (
     <>
       <DemoStage>
-        <Curl variant="rounded" curlRadius={radius} width={260} height={360}>
-          <Curl.Front>
-            <Face label="Front A" color={FRONT_COLOR} />
-          </Curl.Front>
-          <Curl.Back>
-            <Face label="Back B" color={BACK_COLOR} />
-          </Curl.Back>
-        </Curl>
+        <Book variant="rounded" curlRadius={radius} width={260} height={360}>
+          <Book.Page>
+            <Book.Page.Front>
+              <Face label="Front A" color={FRONT_COLOR} />
+            </Book.Page.Front>
+            <Book.Page.Back>
+              <Face label="Back B" color={BACK_COLOR} />
+            </Book.Page.Back>
+          </Book.Page>
+        </Book>
       </DemoStage>
 
       <ControlBar>

@@ -1,4 +1,4 @@
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 import { Slider, Switch, Text } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
 import { useState } from 'react';
@@ -10,10 +10,10 @@ import {
   Face,
   FRONT_COLOR,
   VISIBLE_OVERFLOW,
-} from './_curl-demo-kit';
+} from './_book-demo-kit';
 
 const code = `
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 
 function Demo() {
   // Touch-gesture tuning: a quick flick counts as a swipe when it covers at
@@ -21,16 +21,18 @@ function Demo() {
   // waits for a horizontal-biased gesture before claiming the touch, so
   // vertical page scroll keeps working.
   return (
-    <Curl
+    <Book
       swipeDistance={30}
       swipeTimeThreshold={250}
       mobileScrollSupport
       width={260}
       height={360}
     >
-      <Curl.Front>Front A</Curl.Front>
-      <Curl.Back>Back B</Curl.Back>
-    </Curl>
+      <Book.Page>
+        <Book.Page.Front>Front A</Book.Page.Front>
+        <Book.Page.Back>Back B</Book.Page.Back>
+      </Book.Page>
+    </Book>
   );
 }
 `;
@@ -43,20 +45,22 @@ function Demo() {
   return (
     <>
       <DemoStage>
-        <Curl
+        <Book
           swipeDistance={swipeDistance}
           swipeTimeThreshold={swipeTimeThreshold}
           mobileScrollSupport={mobileScrollSupport}
           width={260}
           height={360}
         >
-          <Curl.Front>
-            <Face label="Front A" color={FRONT_COLOR} />
-          </Curl.Front>
-          <Curl.Back>
-            <Face label="Back B" color={BACK_COLOR} />
-          </Curl.Back>
-        </Curl>
+          <Book.Page>
+            <Book.Page.Front>
+              <Face label="Front A" color={FRONT_COLOR} />
+            </Book.Page.Front>
+            <Book.Page.Back>
+              <Face label="Back B" color={BACK_COLOR} />
+            </Book.Page.Back>
+          </Book.Page>
+        </Book>
       </DemoStage>
 
       <Text size="xs" c="dimmed" ta="center" mt="sm">

@@ -2,9 +2,9 @@
 
 ## Project
 
-`@gfazioli/mantine-book` — a Mantine component for realistic iBooks-style page-curl in React.
+`@gfazioli/mantine-book` — a Mantine component for a realistic iBooks-style book in React.
 
-The primitive is the **single sheet**, not the book. `Curl` performs the soft page-curl of **one** sheet with two faces (`<Curl.Front>` / `<Curl.Back>`), driven by dragging any point of the free edge with the cursor / finger. A future `Book` will be a **stack of `Curl`s** (multi-page, `currentPage`, spread/single layout, click-to-flip).
+The PUBLIC API is the **`Book`**: a stack of two-sided pages (`<Book.Page>` with `<Book.Page.Front>` / `<Book.Page.Back>`, or the data-driven `pages={[{front, back}]}` prop) turned by dragging any point of the free edge, or programmatically via the controlled `page` state (face indices: page `i` → front `2i`, back `2i+1`; `onPageChange` reports the first visible face). Props set on the Book cascade to every page via optional context (`Book.context.ts`); a page can override locally. The single-sheet **`Curl` is the INTERNAL engine** (not exported): `Book.Page` is a thin context-merging wrapper over it, and the Book engine stacks/clones the pages (z-order, per-half pointer routing via `grabZone="sheet"`, controlled `flipped`).
 
 Two rendering paths, selected by the `variant` prop. The default `flat` variant is a **perpendicular-bisector reflection fold** (pure DOM + CSS, no canvas): the grabbed point on the free edge folds onto the pointer, so the crease is the perpendicular bisector of grab→pointer and the lifted flap is the page rectangle's anchor-side reflected across that crease (a CSS `det −1` matrix, which also mirrors the back-face content into a proper rotation). One code path covers every grab point and every drag direction — corner, mid-edge, up/down, both sides. StPageFlip's corner fold ([Nodlik/StPageFlip](https://github.com/Nodlik/StPageFlip), MIT, used only as a mathematical reference) is the special case where the anchor is a corner. The opt-in `rounded` variant draws a **true 3D curl on a WebGL canvas** (crease-aligned cylinder wrap, lit with a specular ridge, tuned by `curlRadius`); the faces are snapshotted to textures during the curl and it falls back to `flat` on any WebGL/snapshot failure.
 
@@ -37,7 +37,10 @@ Yarn workspaces monorepo with `package/` (npm package) and `docs/` (Next.js 16 d
 
 ### Package Source (`package/src/`)
 
-- `Curl/Curl.tsx` — Root component (Mantine factory pattern). Parses the `<Curl.Front>` / `<Curl.Back>` children, wires the `useCurlController` fold state machine, renders the DOM reflection layers for `flat`, and lazily mounts `CurlWebglLayer` (React.lazy + Suspense) for `variant="rounded"`. `Curl.Front` / `Curl.Back` are static markers (render nothing; the parent reads their props via `React.Children`).
+- `Book/Book.tsx` — The PUBLIC root component (Mantine factory, name `Book`). Owns the page stack: clones each `<Book.Page>` (or builds them from the `pages` prop) injecting `width/height/flipped/grabZone="sheet"/disabled/onFold/onFlip`; computes per-page z-order (folding page raised above both stacks); maps the public face-based `page` index ↔ turned pages (`faceToTurnedPages` / `turnedPagesToFace`, exported + unit-tested); provides the optional context.
+- `Book/BookPage.tsx` — `Book.Page`: thin wrapper over the internal `Curl` engine that merges the Book context (page props win); `Book.Page.Front` / `Book.Page.Back` are face markers minted via `makeFaceMarker`.
+- `Book/Book.context.ts` — `BookInheritableProps` + the optional `BookContext` (null outside a Book, so a standalone page works).
+- `Curl/Curl.tsx` — INTERNAL single-sheet engine (Mantine factory pattern, not exported). Parses the face-marker children, wires the `useCurlController` fold state machine, renders the DOM reflection layers for `flat`, and lazily mounts `CurlWebglLayer` (React.lazy + Suspense) for `variant="rounded"`. Supports the controlled `flipped` prop (external changes run the same corner-curl settle animation as a drag) and `grabZone="sheet"` (root pass-through + pointer surface on the resting sheet — the Book's per-half routing).
 - `Curl/Curl.module.css` — Static framing for the layers (`root`, `restSheet`, `curlSheet`, `face`). Per-frame transform + clip-path are applied inline from React.
 - `Curl/webgl/glRenderer.ts` — Raw WebGL2 renderer for the `rounded` variant: a tessellated page mesh wrapped around the crease (cylinder model), front/back textures, smooth normals, Lambert + specular lighting with an edge-on self-shadow. No React/DOM here.
 - `Curl/webgl/CurlWebglLayer.tsx` — Client-only canvas layer. Keeps the live faces off-screen as snapshot sources, captures them to textures (re-capturing when `flipped` swaps which face rests/lifts), and drives `glRenderer` per fold frame. Falls back via `onUnavailable` on any WebGL/snapshot failure.
@@ -64,7 +67,7 @@ Rollup → dual ESM/CJS with `'use client'` banner. CSS modules hashed with `has
 - **Shadows**: derived from the crease (`computeFoldShadow`). The `shadowLayer` SVG overlay paints the reflected flap with a gradient anchored at the crease (dark where the page curves away → transparent at the free edge); the cast halo is a `drop-shadow` filter on `curlSheet`. Both scale with `shadowOpacity` and a `sin(progress·π)` strength curve (0 at rest, peak mid-fold, 0 at a full turn).
 - **Styles API names**: `root`, `restSheet`, `curlSheet`, `shadowLayer`, `face`. CSS vars on `root`: `--curl-page-width`, `--curl-page-height`, `--curl-page-background`, `--curl-shadow-color` (plus `--curl-reveal-background`, reserved for the forthcoming reveal layer).
 
-> **Not yet implemented**: the reveal layer (`revealBackground` / `--curl-reveal-background` / a `bottomFace`), and the `Book` stack. The true curved curl already ships as `variant="rounded"` (WebGL); the `flat` variant remains a sharp clip + crease gradient by design (the universal fallback).
+> **Not yet implemented**: the reveal layer (`revealBackground` / `--curl-reveal-background` / a `bottomFace`) and a `withCover` mode. The `Book` stack SHIPPED (public API). The true curved curl ships as `variant="rounded"` (WebGL); the `flat` variant remains a sharp clip + crease gradient by design (the universal fallback).
 
 ## Testing
 

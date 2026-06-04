@@ -1,4 +1,4 @@
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 import { Slider } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
 import { useState } from 'react';
@@ -12,19 +12,21 @@ import {
   FRONT_COLOR,
   VariantControl,
   VISIBLE_OVERFLOW,
-} from './_curl-demo-kit';
+} from './_book-demo-kit';
 
 const code = `
-import { Curl } from '@gfazioli/mantine-book';
+import { Book } from '@gfazioli/mantine-book';
 
 function Demo() {
-  // The play-zone is 2 × width: the sheet rests in the right half and the
+  // The play-zone is 2 × width: the page rests in the right half and the
   // curl sweeps left toward the spine (the centre).
   return (
-    <Curl width={260} height={360}>
-      <Curl.Front>Front A</Curl.Front>
-      <Curl.Back>Back B</Curl.Back>
-    </Curl>
+    <Book width={260} height={360}>
+      <Book.Page>
+        <Book.Page.Front>Front A</Book.Page.Front>
+        <Book.Page.Back>Back B</Book.Page.Back>
+      </Book.Page>
+    </Book>
   );
 }
 `;
@@ -37,14 +39,16 @@ function Demo() {
   return (
     <>
       <DemoStage>
-        <Curl key={variant} variant={variant} width={width} height={height}>
-          <Curl.Front>
-            <Face label="Front A" color={FRONT_COLOR} />
-          </Curl.Front>
-          <Curl.Back>
-            <Face label="Back B" color={BACK_COLOR} />
-          </Curl.Back>
-        </Curl>
+        <Book key={variant} variant={variant} width={width} height={height}>
+          <Book.Page>
+            <Book.Page.Front>
+              <Face label="Front A" color={FRONT_COLOR} />
+            </Book.Page.Front>
+            <Book.Page.Back>
+              <Face label="Back B" color={BACK_COLOR} />
+            </Book.Page.Back>
+          </Book.Page>
+        </Book>
       </DemoStage>
 
       <ControlBar>

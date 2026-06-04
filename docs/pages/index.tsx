@@ -12,9 +12,9 @@ export default function HomePage() {
       <PageHeader data={PACKAGE_DATA} />
       <DocsTabs
         docgen={docgen}
-        componentsProps={['Curl', 'CurlFace']}
-        componentsStyles={['Curl']}
-        componentPrefix="Curl"
+        componentsProps={['Book', 'BookPage']}
+        componentsStyles={['Book', 'BookPage']}
+        componentPrefix="Book"
         stylesApiData={STYLES_API_DATA}
       >
         <Docs />
