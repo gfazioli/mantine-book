@@ -2,6 +2,12 @@
   scroll-behavior: smooth;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  :global(html) {
+    scroll-behavior: auto;
+  }
+}
+
 .header {
   background-color: alpha(var(--mantine-color-body), 0.85);
   backdrop-filter: blur(5px);
