@@ -11,6 +11,7 @@ import {
   type StylesApiProps,
   useProps,
   useStyles,
+  VisuallyHidden,
 } from '@mantine/core';
 import { useUncontrolled } from '@mantine/hooks';
 import React, { useState } from 'react';
@@ -76,6 +77,13 @@ export interface BookBaseProps extends BookInheritableProps {
 
   /** The pages — `<Book.Page>` children, first page on top. */
   children?: React.ReactNode;
+
+  /**
+   * Builds the screen-reader announcement emitted (politely) after every
+   * page change. Receives the 1-based visible page range and the total page
+   * count. @default "Page X of N" / "Pages X–Y of N"
+   */
+  pageAnnouncement?: (info: { from: number; to: number; total: number }) => string;
 }
 
 export interface BookProps extends BoxProps, BookBaseProps, StylesApiProps<BookFactory> {}
@@ -154,6 +162,7 @@ export const Book = factory<BookFactory>((_props) => {
     disabled,
     pages,
     children,
+    pageAnnouncement,
     classNames,
     style,
     styles,
@@ -247,11 +256,64 @@ export const Book = factory<BookFactory>((_props) => {
   // While a page folds it must sweep ABOVE both stacks; track which one.
   const [foldingIndex, setFoldingIndex] = useState<number | null>(null);
 
+  /* --- Keyboard navigation ----------------------------------------- */
+
+  // The book root is focusable; arrows turn the current page (animated, via
+  // the same controlled-flip path as external navigation), Home/End jump to
+  // the covers. Keys are handled only when the root itself has focus, so
+  // interactive content inside a face keeps its own keyboard behavior.
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled || total === 0 || event.target !== event.currentTarget) {
+      return;
+    }
+    let next: number | null = null;
+    if (event.key === 'ArrowRight') {
+      next = turned < total ? turnedPagesToFace(turned + 1) : null;
+    } else if (event.key === 'ArrowLeft') {
+      next = turned > 0 ? turnedPagesToFace(turned - 1) : null;
+    } else if (event.key === 'Home') {
+      next = turned > 0 ? 0 : null;
+    } else if (event.key === 'End') {
+      next = turned < total ? turnedPagesToFace(total) : null;
+    }
+    if (next !== null) {
+      event.preventDefault();
+      setFace(next);
+    }
+  };
+
+  /* --- Screen-reader announcement ----------------------------------- */
+
+  // 1-based visible page range: only page 1 at rest, the open spread while
+  // reading, only the last page once fully turned.
+  const fromPage = turned === 0 ? 1 : 2 * turned;
+  const toPage = turned === total ? 2 * total : turned === 0 ? 1 : 2 * turned + 1;
+  const totalPages = total * 2;
+  const announcement =
+    total === 0
+      ? null
+      : (pageAnnouncement?.({ from: fromPage, to: toPage, total: totalPages }) ??
+        (fromPage === toPage
+          ? `Page ${fromPage} of ${totalPages}`
+          : `Pages ${fromPage}–${toPage} of ${totalPages}`));
+
   /* --- Render ------------------------------------------------------ */
 
   return (
     <BookContext.Provider value={ctxValue}>
-      <Box ref={ref} {...getStyles('root')} {...others} mod={[{ disabled }, mod]}>
+      <Box
+        ref={ref}
+        role="group"
+        aria-roledescription="book"
+        tabIndex={disabled ? -1 : 0}
+        onKeyDown={handleKeyDown}
+        {...getStyles('root')}
+        {...others}
+        mod={[{ disabled }, mod]}
+      >
+        <VisuallyHidden aria-live="polite" aria-atomic="true">
+          {announcement}
+        </VisuallyHidden>
         {sheets.map((child, index) => {
           const flipped = index < turned;
           // Only the top of each half reacts to the pointer: `turned` (right,

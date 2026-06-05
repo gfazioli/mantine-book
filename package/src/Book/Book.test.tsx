@@ -1,5 +1,5 @@
 import { render } from '@mantine-tests/core';
-import { waitFor } from '@testing-library/react';
+import { fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { Book } from './Book';
 import { BookPage } from './BookPage';
@@ -172,6 +172,82 @@ describe('Book', () => {
       </BookPage>
     );
     expect(container.querySelector('[class*="revealLayer"]')).toBeTruthy();
+  });
+
+  it('exposes book semantics and is keyboard focusable', () => {
+    const { container } = render(<Book>{threePages}</Book>);
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    expect(root.getAttribute('role')).toBe('group');
+    expect(root.getAttribute('aria-roledescription')).toBe('book');
+    expect(root.getAttribute('tabindex')).toBe('0');
+  });
+
+  it('is not focusable when disabled', () => {
+    const { container } = render(<Book disabled>{threePages}</Book>);
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    expect(root.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('turns pages with the keyboard (arrows, Home, End)', async () => {
+    const fastPages = [0, 1, 2].map((i) => (
+      <Book.Page key={i} flippingTime={0}>
+        <Book.Page.Front>F{i}</Book.Page.Front>
+        <Book.Page.Back>B{i}</Book.Page.Back>
+      </Book.Page>
+    ));
+    const { container } = render(<Book>{fastPages}</Book>);
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+
+    fireEvent.keyDown(root, { key: 'ArrowRight' });
+    await waitFor(() => expect(flippedStates(container)).toEqual([true, false, false]));
+
+    fireEvent.keyDown(root, { key: 'ArrowLeft' });
+    await waitFor(() => expect(flippedStates(container)).toEqual([false, false, false]));
+
+    fireEvent.keyDown(root, { key: 'End' });
+    await waitFor(() => expect(flippedStates(container)).toEqual([true, true, true]));
+
+    fireEvent.keyDown(root, { key: 'Home' });
+    await waitFor(() => expect(flippedStates(container)).toEqual([false, false, false]));
+  });
+
+  it('ignores keys when disabled', () => {
+    const onPageChange = jest.fn();
+    const { container } = render(
+      <Book disabled onPageChange={onPageChange}>
+        {threePages}
+      </Book>
+    );
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    fireEvent.keyDown(root, { key: 'ArrowRight' });
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
+
+  it('ignores keys bubbling from face content', () => {
+    const onPageChange = jest.fn();
+    const { getByText } = render(<Book onPageChange={onPageChange}>{threePages}</Book>);
+    fireEvent.keyDown(getByText('F1'), { key: 'ArrowRight' });
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
+
+  it('announces the visible pages through a polite live region', () => {
+    const { container, rerender } = render(<Book page={0}>{threePages}</Book>);
+    const live = () => container.querySelector<HTMLElement>('[aria-live="polite"]')!.textContent;
+    expect(live()).toBe('Page 1 of 6');
+    rerender(<Book page={1}>{threePages}</Book>);
+    expect(live()).toBe('Pages 2–3 of 6');
+    rerender(<Book page={5}>{threePages}</Book>);
+    expect(live()).toBe('Page 6 of 6');
+  });
+
+  it('supports a custom pageAnnouncement formatter', () => {
+    const { container } = render(
+      <Book page={1} pageAnnouncement={({ from, to, total }) => `Pagine ${from}-${to} di ${total}`}>
+        {threePages}
+      </Book>
+    );
+    const live = container.querySelector<HTMLElement>('[aria-live="polite"]')!;
+    expect(live.textContent).toBe('Pagine 2-3 di 6');
   });
 
   it('inherits Book props on pages via optional context (page override wins)', () => {

@@ -76,6 +76,27 @@ grab point — `bottom` or `top` curl from that corner with a diagonal crease,
 
 <Demo data={demos.groupControls} />
 
+### Keyboard and screen readers
+
+The book is keyboard-operable out of the box: focus it (it is in the tab
+order) and use **ArrowRight / ArrowLeft** to turn the current page forward or
+back, **Home / End** to jump to the covers — every keyboard turn plays the
+same animated curl as the external controls, and collapses to an instant
+settle under `prefers-reduced-motion: reduce`. Keys are handled only while
+the book itself has focus, so interactive content inside a face keeps its
+own keyboard behavior.
+
+For assistive technology the root exposes `role="group"` with
+`aria-roledescription="book"`, and a polite live region announces the
+visible pages after every turn (Page X of N). Use `pageAnnouncement` to
+localize or customize the message:
+
+```tsx
+<Book pageAnnouncement={({ from, to, total }) => `Pagine ${from}–${to} di ${total}`}>
+  …
+</Book>
+```
+
 ## Faces
 
 A page has two faces, declared as compound children: `Book.Page.Front` (the

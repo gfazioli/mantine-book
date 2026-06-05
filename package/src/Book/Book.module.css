@@ -17,6 +17,13 @@
   background: var(--curl-reveal-background, transparent);
 }
 
+/* The book root is keyboard-focusable (arrows turn the pages): show the
+   focus ring only for keyboard focus, not on pointer grabs. */
+.root:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
 .page {
   position: absolute;
   top: 0;
