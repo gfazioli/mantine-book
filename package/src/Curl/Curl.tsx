@@ -70,7 +70,11 @@ export interface CurlBaseProps {
   /** Background color applied to each face. @default 'white' */
   pageBackground?: MantineColor | string;
 
-  /** Background shown in the area uncovered by the curl. @default same as pageBackground */
+  /**
+   * Layer painted under this page, shown through the area the curl uncovers.
+   * When unset no layer is rendered and the uncovered region shows whatever
+   * sits beneath (the next page in a Book, or the Book's inside cover).
+   */
   revealBackground?: MantineColor | string;
 
   /**
@@ -142,8 +146,9 @@ export type CurlFactory = Factory<{
   vars: CurlCssVariables;
   /**
    * Curl renderer. `'flat'` is the DOM reflection fold (default, fully
-   * interactive at rest, the universal fallback); `'rounded'` is the WebGL cone
-   * curl (the faces are a static snapshot during the curl, live at rest).
+   * interactive at rest, the universal fallback); `'rounded'` is the true 3D
+   * WebGL curl — a crease-aligned cylinder wrap (the faces are a static
+   * snapshot during the curl, live at rest).
    */
   variant: 'flat' | 'rounded';
   staticComponents: {

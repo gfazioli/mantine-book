@@ -94,7 +94,17 @@ export function useFlipAnimator(): FlipAnimator {
     (options: AnimateOptions) => {
       cancel();
 
-      const duration = Math.max(0, options.duration ?? 1000);
+      // Honor prefers-reduced-motion (WCAG 2.3.3): collapse the animation to
+      // an instant settle — onProgress(1) and onComplete still fire, so the
+      // flip semantics (and the Book's page state) are unchanged. A live drag
+      // is exempt by construction: it tracks the pointer, not this animator.
+      // Read fresh on every start so runtime OS changes are respected.
+      const reduceMotion =
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      const duration = reduceMotion ? 0 : Math.max(0, options.duration ?? 1000);
       const easing = options.easing ?? easeOutCubic;
       const startTs = performance.now();
       activeRef.current = true;

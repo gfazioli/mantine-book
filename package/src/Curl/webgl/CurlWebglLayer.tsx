@@ -251,12 +251,12 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
         aria-hidden="true"
         style={{
           position: 'absolute',
-          // Vertical headroom (matches CurlGlRenderer.PAD_RATIO) so the lifted
-          // curl can extend above/below the page without being clipped.
-          top: -Math.round(height * 0.18),
+          // Vertical headroom (single source of truth: CurlGlRenderer.PAD_RATIO)
+          // so the lifted curl can extend above/below the page unclipped.
+          top: -Math.round(height * CurlGlRenderer.PAD_RATIO),
           left: 0,
           width: width * 2,
-          height: height + 2 * Math.round(height * 0.18),
+          height: height + 2 * Math.round(height * CurlGlRenderer.PAD_RATIO),
           pointerEvents: 'none',
           display: active ? 'block' : 'none',
           zIndex: 6,
