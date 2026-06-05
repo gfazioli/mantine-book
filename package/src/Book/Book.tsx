@@ -4,6 +4,7 @@ import {
   Box,
   type BoxProps,
   createVarsResolver,
+  type ElementProps,
   factory,
   type Factory,
   getThemeColor,
@@ -86,7 +87,8 @@ export interface BookBaseProps extends BookInheritableProps {
   pageAnnouncement?: (info: { from: number; to: number; total: number }) => string;
 }
 
-export interface BookProps extends BoxProps, BookBaseProps, StylesApiProps<BookFactory> {}
+export interface BookProps
+  extends BoxProps, BookBaseProps, StylesApiProps<BookFactory>, ElementProps<'div'> {}
 
 export type BookFactory = Factory<{
   props: BookProps;
@@ -299,16 +301,38 @@ export const Book = factory<BookFactory>((_props) => {
 
   /* --- Render ------------------------------------------------------ */
 
+  // The consumer's handler and labelling must COMPOSE with (not silently
+  // replace) the built-in keyboard navigation and accessible name: a
+  // role="group" needs a name, and a user onKeyDown spread over ours would
+  // kill the arrow-key turns. The user handler runs first and can opt out
+  // with event.preventDefault().
+  const {
+    onKeyDown: userOnKeyDown,
+    'aria-label': ariaLabel,
+    'aria-labelledby': ariaLabelledby,
+    'aria-roledescription': ariaRoledescription = 'book',
+    role = 'group',
+    tabIndex,
+    ...rest
+  } = others;
+
   return (
     <BookContext.Provider value={ctxValue}>
       <Box
         ref={ref}
-        role="group"
-        aria-roledescription="book"
-        tabIndex={disabled ? -1 : 0}
-        onKeyDown={handleKeyDown}
+        role={role}
+        aria-roledescription={ariaRoledescription}
+        aria-label={ariaLabelledby ? ariaLabel : (ariaLabel ?? 'Book')}
+        aria-labelledby={ariaLabelledby}
+        tabIndex={tabIndex ?? (disabled ? -1 : 0)}
+        onKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) => {
+          userOnKeyDown?.(event);
+          if (!event.defaultPrevented) {
+            handleKeyDown(event);
+          }
+        }}
         {...getStyles('root')}
-        {...others}
+        {...rest}
         mod={[{ disabled }, mod]}
       >
         <VisuallyHidden aria-live="polite" aria-atomic="true">
