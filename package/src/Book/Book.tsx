@@ -290,6 +290,16 @@ export const Book = factory<BookFactory>((_props) => {
 
   // Advance the queue: start the next step when nothing is in flight.
   useEffect(() => {
+    // If the page count shrank mid-flight and the stepping page no longer
+    // exists, its onFlip can never fire — clear the stale step so the
+    // reconciliation cannot deadlock.
+    if (queueStep !== null && queueStep.index >= total) {
+      setQueueStep(null);
+      setStepTime(undefined);
+      setFoldingIndex((current) => (current !== null && current >= total ? null : current));
+      setDisplayedTurned((current) => Math.min(current, total));
+      return;
+    }
     if (queueStep !== null || foldingIndex !== null || total === 0) {
       return;
     }
