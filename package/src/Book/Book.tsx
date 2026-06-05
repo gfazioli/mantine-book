@@ -15,7 +15,7 @@ import {
   VisuallyHidden,
 } from '@mantine/core';
 import { useUncontrolled } from '@mantine/hooks';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { CurlProps } from '../Curl/Curl';
 import { BookContext, type BookContextValue, type BookInheritableProps } from './Book.context';
 import { BookPage, type BookPageProps } from './BookPage';
@@ -123,6 +123,11 @@ const varsResolver = createVarsResolver<BookFactory>(
     },
   })
 );
+
+/** Total time budget (ms) for a multi-page riffle catch-up. */
+const RIFFLE_BUDGET = 1000;
+/** Floor (ms) for a single compressed riffle step. */
+const RIFFLE_MIN_STEP = 80;
 
 const INHERITABLE: (keyof BookContextValue)[] = [
   'variant',
@@ -258,6 +263,52 @@ export const Book = factory<BookFactory>((_props) => {
   // While a page folds it must sweep ABOVE both stacks; track which one.
   const [foldingIndex, setFoldingIndex] = useState<number | null>(null);
 
+  /* --- Turn queue (one page in flight at a time) --------------------- */
+
+  // The `page` state is the TARGET; `displayedTurned` is what is visually
+  // settled. They are reconciled ONE page-turn at a time: only the boundary
+  // page's `flipped` prop changes, the queue waits for its onFlip, then
+  // advances. This is the invariant that keeps rapid inputs sane (no two
+  // pages animating at once fighting over the z-boost) and that lets a
+  // single WebGL context serve the whole book. Initialized to the initial
+  // target so the mount state never animates.
+  const [displayedState, setDisplayedTurned] = useState<number>(() =>
+    faceToTurnedPages(typeof page === 'number' ? page : (defaultPage ?? 0), total)
+  );
+  const [queueStep, setQueueStep] = useState<{ index: number; forward: boolean } | null>(null);
+  // Per-step duration override for multi-page jumps: the riffle compresses
+  // each turn so the whole catch-up fits the budget.
+  const [stepTime, setStepTime] = useState<number | undefined>(undefined);
+
+  const displayedTurned = Math.min(displayedState, total);
+  const effectiveTurned =
+    queueStep === null
+      ? displayedTurned
+      : queueStep.forward
+        ? Math.min(displayedTurned + 1, total)
+        : Math.max(displayedTurned - 1, 0);
+
+  // Advance the queue: start the next step when nothing is in flight.
+  useEffect(() => {
+    if (queueStep !== null || foldingIndex !== null || total === 0) {
+      return;
+    }
+    if (displayedTurned === turned) {
+      return;
+    }
+    const steps = Math.abs(turned - displayedTurned);
+    const forward = turned > displayedTurned;
+    const index = forward ? displayedTurned : displayedTurned - 1;
+    // Accelerated riffle on multi-page jumps: compress the per-page duration
+    // so the whole run lands within ~RIFFLE_BUDGET ms.
+    setStepTime(
+      steps > 1
+        ? Math.max(RIFFLE_MIN_STEP, Math.min(flippingTime ?? 600, RIFFLE_BUDGET / steps))
+        : undefined
+    );
+    setQueueStep({ index, forward });
+  }, [turned, displayedTurned, foldingIndex, queueStep, total, flippingTime]);
+
   /* --- Keyboard navigation ----------------------------------------- */
 
   // The book root is focusable; arrows turn the current page (animated, via
@@ -339,10 +390,17 @@ export const Book = factory<BookFactory>((_props) => {
           {announcement}
         </VisuallyHidden>
         {sheets.map((child, index) => {
-          const flipped = index < turned;
-          // Only the top of each half reacts to the pointer: `turned` (right,
-          // turns forward) and `turned - 1` (left, turns back).
-          const interactive = !disabled && (index === turned || index === turned - 1);
+          const flipped = index < effectiveTurned;
+          // While a fold is in flight (a user drag or a queue step), only that
+          // page stays interactive — a second simultaneous fold would fight it
+          // over the z-boost and break the one-page-in-flight invariant.
+          const inFlight = queueStep?.index ?? foldingIndex;
+          // Only the top of each half reacts to the pointer: `effectiveTurned`
+          // (right, turns forward) and `effectiveTurned - 1` (left, turns back).
+          const interactive =
+            !disabled &&
+            (index === effectiveTurned || index === effectiveTurned - 1) &&
+            (inFlight === null || inFlight === index);
           // Resting stacks: on the right the NEXT pages sit underneath in
           // order; on the left the most recently turned page stays on top. A
           // folding page is raised above everything while it sweeps across.
@@ -351,24 +409,42 @@ export const Book = factory<BookFactory>((_props) => {
           const childOnFold = child.props.onFold;
           const childOnFlip = child.props.onFlip;
 
+          const overrides: Partial<CurlProps> = {
+            width,
+            height,
+            flipped,
+            grabZone: 'sheet',
+            disabled: child.props.disabled || !interactive,
+            onFold: (info) => {
+              setFoldingIndex(index);
+              childOnFold?.(info);
+            },
+            onFlip: (info) => {
+              setFoldingIndex(null);
+              const newTurned = info.flipped ? index + 1 : index;
+              if (queueStep?.index === index) {
+                // Queue step settled: record progress and let the advance
+                // effect start the next step. The face already points at the
+                // target, so no setFace here.
+                setDisplayedTurned(newTurned);
+                setQueueStep(null);
+              } else {
+                // User drag settled (turn or snap-back): this IS the new
+                // target — report it.
+                setDisplayedTurned(newTurned);
+                setFace(turnedPagesToFace(newTurned));
+              }
+              childOnFlip?.(info);
+            },
+          };
+          // Compressed duration while this page is a multi-page riffle step.
+          if (queueStep?.index === index && stepTime !== undefined) {
+            overrides.flippingTime = stepTime;
+          }
+
           return (
             <div key={child.key ?? index} {...getStyles('page', { style: { zIndex } })}>
-              {React.cloneElement(child, {
-                width,
-                height,
-                flipped,
-                grabZone: 'sheet',
-                disabled: child.props.disabled || !interactive,
-                onFold: (info) => {
-                  setFoldingIndex(index);
-                  childOnFold?.(info);
-                },
-                onFlip: (info) => {
-                  setFoldingIndex(null);
-                  setFace(turnedPagesToFace(info.flipped ? index + 1 : index));
-                  childOnFlip?.(info);
-                },
-              })}
+              {React.cloneElement(child, overrides)}
             </div>
           );
         })}

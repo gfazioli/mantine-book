@@ -131,6 +131,50 @@ describe('Book', () => {
     await waitFor(() => expect(flippedStates(container)).toEqual([true, false, false]));
   });
 
+  it('serializes multi-page jumps: one page in flight at a time, in order (riffle)', async () => {
+    const events: string[] = [];
+    const fastPages = [0, 1, 2].map((i) => (
+      <Book.Page
+        key={i}
+        flippingTime={0}
+        onFold={() => {
+          if (events[events.length - 1] !== `fold:${i}`) {
+            events.push(`fold:${i}`);
+          }
+        }}
+        onFlip={() => events.push(`flip:${i}`)}
+      >
+        <Book.Page.Front>F{i}</Book.Page.Front>
+        <Book.Page.Back>B{i}</Book.Page.Back>
+      </Book.Page>
+    ));
+    // Drive the jump from inside (End key): an RTL rerender would REMOUNT the
+    // whole tree (fresh internal state) and bypass the queue entirely.
+    const { container } = render(<Book>{fastPages}</Book>);
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    fireEvent.keyDown(root, { key: 'End' });
+    await waitFor(() => expect(flippedStates(container)).toEqual([true, true, true]));
+    // Every page in the path turned (riffle, not snap), strictly one after
+    // the other: each page's flip completes before the next page's first fold.
+    expect(events).toEqual(['fold:0', 'flip:0', 'fold:1', 'flip:1', 'fold:2', 'flip:2']);
+  });
+
+  it('queues rapid keyboard turns instead of overlapping them', async () => {
+    const fastPages = [0, 1, 2].map((i) => (
+      <Book.Page key={i} flippingTime={0}>
+        <Book.Page.Front>F{i}</Book.Page.Front>
+        <Book.Page.Back>B{i}</Book.Page.Back>
+      </Book.Page>
+    ));
+    const { container } = render(<Book>{fastPages}</Book>);
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    // Three rapid presses before any animation can settle.
+    fireEvent.keyDown(root, { key: 'ArrowRight' });
+    fireEvent.keyDown(root, { key: 'ArrowRight' });
+    fireEvent.keyDown(root, { key: 'ArrowRight' });
+    await waitFor(() => expect(flippedStates(container)).toEqual([true, true, true]));
+  });
+
   it('starts from defaultPage when uncontrolled', () => {
     const { container } = render(<Book defaultPage={1}>{threePages}</Book>);
     expect(flippedStates(container)).toEqual([true, false, false]);
