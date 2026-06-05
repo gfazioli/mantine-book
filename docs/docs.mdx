@@ -74,6 +74,11 @@ grab point — `bottom` or `top` curl from that corner with a diagonal crease,
 `middle` folds the page straight over — and `flippingTime` sets the speed
 (tune both below). Dragging the pages keeps working alongside the controls.
 
+Turns are **queued, one page in flight at a time**: rapid clicks or key
+presses never overlap two animations — they accumulate and the book riffles
+through them in order, compressing the per-page duration on long jumps so
+the whole run stays around a second. Try hammering the next arrow below.
+
 <Demo data={demos.groupControls} />
 
 ### Keyboard and screen readers

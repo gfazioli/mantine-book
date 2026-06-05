@@ -1,5 +1,13 @@
 import { Book, type BookPageData, type TurnOrigin } from '@gfazioli/mantine-book';
-import { ActionIcon, Badge, Group, SegmentedControl, Slider, Stack } from '@mantine/core';
+import {
+  ActionIcon,
+  Badge,
+  Group,
+  SegmentedControl,
+  Slider,
+  Stack,
+  UnstyledButton,
+} from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { useState } from 'react';
@@ -78,6 +86,12 @@ function Demo() {
   const [turnOrigin, setTurnOrigin] = useState<TurnOrigin>('bottom');
   const lastFace = PAGES.length * 2 - 1;
 
+  // One dot per reachable spread: closed (face 0), each open spread, fully
+  // turned (face 2N−1). Clicking a far dot makes the book riffle through
+  // every page in between — the queued-turn behavior in action.
+  const dotFaces = [0, ...PAGES.map((_, index) => index * 2 + 1)];
+  const activeDot = Math.ceil(page / 2);
+
   return (
     <Stack align="center" gap="md">
       <Book
@@ -103,9 +117,26 @@ function Demo() {
         >
           <IconChevronLeft size={18} />
         </ActionIcon>
-        <Badge variant="light" size="lg" w={110} ta="center">
-          page {page} / {lastFace}
-        </Badge>
+        <Group gap={8}>
+          {dotFaces.map((face, index) => (
+            <UnstyledButton
+              key={face}
+              aria-label={index === 0 ? 'Closed book' : `Spread ${index}`}
+              onClick={() => setPage(face)}
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                transition: 'background-color 150ms ease, transform 150ms ease',
+                transform: index === activeDot ? 'scale(1.25)' : undefined,
+                backgroundColor:
+                  index === activeDot
+                    ? 'var(--mantine-primary-color-filled)'
+                    : 'var(--mantine-color-default-border)',
+              }}
+            />
+          ))}
+        </Group>
         <ActionIcon
           variant="default"
           radius="xl"
@@ -119,6 +150,10 @@ function Demo() {
           <IconChevronRight size={18} />
         </ActionIcon>
       </Group>
+
+      <Badge variant="light" size="lg" w={110} ta="center">
+        page {page} / {lastFace}
+      </Badge>
 
       <ControlBar>
         <Control label={`Flipping time — ${flippingTime} ms`} w={220}>
