@@ -20,8 +20,6 @@ export interface BookInheritableProps {
   shadowColor?: MantineColor | string;
   /** Background color applied to each face. */
   pageBackground?: MantineColor | string;
-  /** Background shown in the area uncovered by the curl. */
-  revealBackground?: MantineColor | string;
   /** Curl radius in px for the rounded variant. */
   curlRadius?: number;
   /** Duration in ms of the settle animation after release. */

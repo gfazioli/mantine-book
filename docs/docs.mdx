@@ -173,16 +173,19 @@ the 3D render, which is why there is no separate lighting control.
 
 <Demo data={demos.shadow} />
 
-## Page background
+## Page background and reveal
 
 `pageBackground` (a `MantineColor` or any CSS color) fills each face behind its
 content, so transparent content sits on a solid page.
 
-<Demo data={demos.pageBackground} />
+`revealBackground` paints what the curl **uncovers**. On the `Book` it is the
+inside cover: a base under the whole stack, visible where no page rests (the
+left half before the first turn, the right half past the last) and through
+the curl of the first and last page — between two inner pages the natural
+reveal is the next page itself. On a single `Book.Page` it paints a layer
+under that page only, for standalone peel effects.
 
-**Reserved:** `revealBackground` is accepted for forward compatibility but has
-no visible effect yet — it will paint the area uncovered by the curl once the
-reveal layer ships in a future release.
+<Demo data={demos.pageBackground} />
 
 ## Interaction and release
 

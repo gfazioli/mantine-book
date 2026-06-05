@@ -9,6 +9,8 @@ export const BookPageStylesApi: StylesApiData<CurlFactory> = {
     curlSheet: 'The lifting flap showing the opposite face (clipped + rotated per frame)',
     shadowLayer:
       'SVG overlay with the curl shading gradient (the cast halo is a filter on curlSheet)',
+    revealLayer:
+      'Layer under THIS page, shown through the region the curl uncovers (rendered only when revealBackground is set on the page)',
     face: 'Content wrapper inside a face (sizing, alignment, overflow clipping)',
   },
 

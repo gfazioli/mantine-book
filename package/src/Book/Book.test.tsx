@@ -147,6 +147,33 @@ describe('Book', () => {
     expect(roots[2].getAttribute('data-disabled')).not.toBeNull();
   });
 
+  it('paints the inside-cover base on the Book root without cascading to pages', () => {
+    const { container } = render(<Book revealBackground="rgb(7, 8, 9)">{threePages}</Book>);
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    expect(root.style.getPropertyValue('--curl-reveal-background')).toBe('rgb(7, 8, 9)');
+    // No per-page reveal layer: the stack's natural reveal is the next page.
+    expect(container.querySelector('[class*="revealLayer"]')).toBeNull();
+    const pageRoots = Array.from(container.querySelectorAll<HTMLElement>('[class*="page"]')).map(
+      (wrap) => wrap.firstElementChild as HTMLElement
+    );
+    expect(pageRoots[0].style.getPropertyValue('--curl-reveal-background')).toBe('');
+  });
+
+  it('renders the per-page reveal layer only when set on the page itself', () => {
+    const { container, rerender } = render(
+      <BookPage width={120} height={160}>
+        <BookPage.Front>A</BookPage.Front>
+      </BookPage>
+    );
+    expect(container.querySelector('[class*="revealLayer"]')).toBeNull();
+    rerender(
+      <BookPage width={120} height={160} revealBackground="rgb(1, 2, 3)">
+        <BookPage.Front>A</BookPage.Front>
+      </BookPage>
+    );
+    expect(container.querySelector('[class*="revealLayer"]')).toBeTruthy();
+  });
+
   it('inherits Book props on pages via optional context (page override wins)', () => {
     const { container } = render(
       <Book pageBackground="rgb(1, 2, 3)">

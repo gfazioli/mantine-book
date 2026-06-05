@@ -10,6 +10,11 @@
   position: relative;
   width: calc(var(--curl-page-width) * 2);
   height: var(--curl-page-height);
+  /* Inside-cover base: visible wherever no page rests (left half before the
+     first turn, right half past the last) and through the region the
+     first/last page uncovers while turning. Transparent unless the
+     `revealBackground` prop sets the variable. */
+  background: var(--curl-reveal-background, transparent);
 }
 
 .page {
