@@ -122,6 +122,7 @@ function Demo() {
             <UnstyledButton
               key={face}
               aria-label={index === 0 ? 'Closed book' : `Spread ${index}`}
+              aria-current={index === activeDot ? 'page' : undefined}
               onClick={() => setPage(face)}
               style={{
                 width: 12,
