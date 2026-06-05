@@ -87,9 +87,10 @@ are handled only while the book itself has focus, so interactive content
 inside a face keeps its own keyboard behavior.
 
 For assistive technology the root exposes `role="group"` with
-`aria-roledescription="book"`, and a polite live region announces the
-visible pages after every turn (Page X of N). Use `pageAnnouncement` to
-localize or customize the message:
+`aria-roledescription="book"` (give it your own name with `aria-label`), and
+a polite live region announces the visible pages after every turn — "Page 1
+of 6" when a single page is visible, "Pages 2–3 of 6" on an open spread. Use
+`pageAnnouncement` to localize or customize the message:
 
 ```tsx
 <Book pageAnnouncement={({ from, to, total }) => `Pagine ${from}–${to} di ${total}`}>

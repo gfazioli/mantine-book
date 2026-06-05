@@ -230,6 +230,51 @@ describe('Book', () => {
     expect(onPageChange).not.toHaveBeenCalled();
   });
 
+  it('has a default accessible name, overridable by the consumer', () => {
+    const a = render(<Book>{threePages}</Book>);
+    expect(
+      a.container.querySelector<HTMLElement>('[class*="root"]')!.getAttribute('aria-label')
+    ).toBe('Book');
+    const b = render(<Book aria-label="Photo album">{threePages}</Book>);
+    expect(
+      b.container.querySelector<HTMLElement>('[class*="root"]')!.getAttribute('aria-label')
+    ).toBe('Photo album');
+    const c = render(<Book aria-labelledby="title-id">{threePages}</Book>);
+    const rootC = c.container.querySelector<HTMLElement>('[class*="root"]')!;
+    expect(rootC.getAttribute('aria-labelledby')).toBe('title-id');
+    expect(rootC.getAttribute('aria-label')).toBeNull();
+  });
+
+  it('composes a consumer onKeyDown with the built-in keyboard navigation', async () => {
+    const fastPages = [0, 1].map((i) => (
+      <Book.Page key={i} flippingTime={0}>
+        <Book.Page.Front>F{i}</Book.Page.Front>
+        <Book.Page.Back>B{i}</Book.Page.Back>
+      </Book.Page>
+    ));
+    const userHandler = jest.fn();
+    const { container } = render(<Book onKeyDown={userHandler}>{fastPages}</Book>);
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    fireEvent.keyDown(root, { key: 'ArrowRight' });
+    expect(userHandler).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(flippedStates(container)).toEqual([true, false]));
+  });
+
+  it('lets a consumer onKeyDown opt out of the built-in turn via preventDefault', () => {
+    const onPageChange = jest.fn();
+    const { container } = render(
+      <Book
+        onPageChange={onPageChange}
+        onKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) => event.preventDefault()}
+      >
+        {threePages}
+      </Book>
+    );
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    fireEvent.keyDown(root, { key: 'ArrowRight' });
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
+
   it('announces the visible pages through a polite live region', () => {
     const { container, rerender } = render(<Book page={0}>{threePages}</Book>);
     const live = () => container.querySelector<HTMLElement>('[aria-live="polite"]')!.textContent;
