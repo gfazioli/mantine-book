@@ -11,6 +11,8 @@ export const BookStylesApi: StylesApiData<BookFactory> = {
     root: {
       '--curl-page-width': 'Page width in CSS px (play-zone is twice this)',
       '--curl-page-height': 'Page height in CSS px',
+      '--curl-reveal-background':
+        'Inside-cover background painted under the whole page stack (transparent by default)',
     },
   },
 

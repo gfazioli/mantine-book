@@ -6,6 +6,8 @@ import {
   createVarsResolver,
   factory,
   type Factory,
+  getThemeColor,
+  type MantineColor,
   type StylesApiProps,
   useProps,
   useStyles,
@@ -25,7 +27,7 @@ import classes from './Book.module.css';
 export type BookStylesNames = 'root' | 'page';
 
 export type BookCssVariables = {
-  root: '--curl-page-width' | '--curl-page-height';
+  root: '--curl-page-width' | '--curl-page-height' | '--curl-reveal-background';
 };
 
 /** One page in the data-driven `pages` prop: front/back content + optional
@@ -60,6 +62,15 @@ export interface BookBaseProps extends BookInheritableProps {
   /** Disable the drag interaction on every page. @default false */
   disabled?: boolean;
 
+  /**
+   * Inside-cover background, painted under the whole page stack: visible
+   * where no page rests (the left half before the first turn, the right half
+   * after the last) and in the area the first/last page uncovers while it
+   * turns. For a layer under a SINGLE page use `revealBackground` on that
+   * `Book.Page` instead.
+   */
+  revealBackground?: MantineColor | string;
+
   /** Data-driven pages — used when no `<Book.Page>` children are given. */
   pages?: BookPageData[];
 
@@ -92,12 +103,16 @@ const defaultProps: Partial<BookProps> = {
   disabled: false,
 };
 
-const varsResolver = createVarsResolver<BookFactory>((_theme, { width, height }) => ({
-  root: {
-    '--curl-page-width': `${width}px`,
-    '--curl-page-height': `${height}px`,
-  },
-}));
+const varsResolver = createVarsResolver<BookFactory>(
+  (theme, { width, height, revealBackground }) => ({
+    root: {
+      '--curl-page-width': `${width}px`,
+      '--curl-page-height': `${height}px`,
+      '--curl-reveal-background':
+        revealBackground === undefined ? undefined : getThemeColor(revealBackground, theme),
+    },
+  })
+);
 
 const INHERITABLE: (keyof BookContextValue)[] = [
   'variant',
@@ -105,7 +120,6 @@ const INHERITABLE: (keyof BookContextValue)[] = [
   'shadowOpacity',
   'shadowColor',
   'pageBackground',
-  'revealBackground',
   'curlRadius',
   'flippingTime',
   'flipThreshold',
@@ -186,7 +200,6 @@ export const Book = factory<BookFactory>((_props) => {
     shadowOpacity,
     shadowColor,
     pageBackground,
-    revealBackground,
     curlRadius,
     flippingTime,
     flipThreshold,

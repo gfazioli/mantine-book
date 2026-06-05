@@ -34,7 +34,13 @@ const CurlWebglLayer = lazy(() =>
 /*  Public API                                                         */
 /* ------------------------------------------------------------------ */
 
-export type CurlStylesNames = 'root' | 'restSheet' | 'curlSheet' | 'shadowLayer' | 'face';
+export type CurlStylesNames =
+  | 'root'
+  | 'restSheet'
+  | 'curlSheet'
+  | 'shadowLayer'
+  | 'revealLayer'
+  | 'face';
 
 export type CurlCssVariables = {
   root:
@@ -229,7 +235,7 @@ export const Curl = factory<CurlFactory>((_props) => {
     shadowOpacity,
     shadowColor,
     pageBackground: _pb,
-    revealBackground: _rb,
+    revealBackground,
     curlRadius,
     disabled,
     flipped: flippedProp,
@@ -411,6 +417,15 @@ export const Curl = factory<CurlFactory>((_props) => {
       {...dragHandlers}
       mod={[{ folding, flipped, disabled }, mod]}
     >
+      {/* Reveal layer: what the curl uncovers UNDER this page. Painted only
+          when `revealBackground` is set — sits beneath the resting sheet on
+          the same half, so it shows through the clipped region while folding.
+          (Inside a Book the natural reveal is the next page in the stack; the
+          Book-level inside-cover base lives on the Book root instead.) */}
+      {revealBackground !== undefined && (
+        <div {...getStyles('revealLayer', { style: { left: restLeft } })} aria-hidden="true" />
+      )}
+
       {/* Resting face (Front in the right half; Back in the left half once
           flipped). Full when idle; clipped to the still-flat (spine-side)
           region while folding so the lifted area shows the background. */}

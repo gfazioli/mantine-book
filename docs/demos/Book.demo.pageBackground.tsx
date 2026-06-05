@@ -16,7 +16,9 @@ import { Book } from '@gfazioli/mantine-book';
 
 function Demo() {
   return (
-    <Book pageBackground="#fff9db" width={260} height={360}>
+    // revealBackground = the "inside cover" painted under the whole stack:
+    // visible where no page rests and through the curl of the first/last page
+    <Book pageBackground="#fff9db" revealBackground="#343a40" width={260} height={360}>
       <Book.Page>
         <Book.Page.Front>Front</Book.Page.Front>
         <Book.Page.Back>Back</Book.Page.Back>
@@ -34,6 +36,7 @@ function Label({ text }: { text: string }) {
 function Demo() {
   const [variant, setVariant] = useState<CurlVariant>('flat');
   const [pageBackground, setPageBackground] = useState('#fff9db');
+  const [revealBackground, setRevealBackground] = useState('#343a40');
 
   return (
     <>
@@ -42,6 +45,7 @@ function Demo() {
           key={variant}
           variant={variant}
           pageBackground={pageBackground}
+          revealBackground={revealBackground}
           width={260}
           height={360}
         >
@@ -60,6 +64,9 @@ function Demo() {
         <VariantControl value={variant} onChange={setVariant} />
         <Control label="Page background" w={200}>
           <ColorInput value={pageBackground} onChange={setPageBackground} format="hex" />
+        </Control>
+        <Control label="Reveal background" w={200}>
+          <ColorInput value={revealBackground} onChange={setRevealBackground} format="hex" />
         </Control>
       </ControlBar>
     </>

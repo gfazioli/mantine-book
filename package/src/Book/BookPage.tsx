@@ -27,7 +27,6 @@ const INHERITABLE: (keyof BookContextValue)[] = [
   'shadowOpacity',
   'shadowColor',
   'pageBackground',
-  'revealBackground',
   'curlRadius',
   'flippingTime',
   'flipThreshold',

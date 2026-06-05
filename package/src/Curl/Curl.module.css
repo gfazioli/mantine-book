@@ -72,6 +72,18 @@
   z-index: 8;
 }
 
+.revealLayer {
+  position: absolute;
+  top: 0;
+  width: var(--curl-page-width);
+  height: var(--curl-page-height);
+  background: var(--curl-reveal-background);
+  /* Beneath the resting sheet (z-index 1): visible only through the region
+     the fold uncovers. `left` follows the resting half (inline, side-aware). */
+  z-index: 0;
+  pointer-events: none;
+}
+
 .face {
   width: 100%;
   height: 100%;
