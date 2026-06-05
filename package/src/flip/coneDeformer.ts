@@ -2,8 +2,13 @@
  * Cone page-curl deformer — the Hong et al. "Deforming Pages of Electronic
  * Books" cone model, ported from prideout/pageturn (Apache-2.0). Pure math: it
  * maps a flat unit page mesh (texcoords u, v ∈ [0, 1]) onto the curled 3D cone
- * surface and writes the `positions`. No WebGL, no DOM — the WebGL renderer
- * scales the unit-space output to the sheet size and orients it to the crease.
+ * surface and writes the `positions`. No WebGL, no DOM.
+ *
+ * STATUS: only {@link buildConeMesh} (the static grid) is used by the
+ * shipping renderer. The deform path ({@link deformConeMesh} / {@link coneParams})
+ * is NOT wired — glRenderer.ts uses a crease-aligned CYLINDER wrap instead.
+ * This module is kept (and unit-tested) as a possible future asymmetric
+ * "dog-ear" model.
  *
  * The cone apex sits far down −v, so curvature grows with distance from the
  * binding: the page wraps tightest near the spine and the far corner peels up —

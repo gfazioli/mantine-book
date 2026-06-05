@@ -1,12 +1,17 @@
 /**
- * Curl WebGL2 renderer — draws the cone-deformed page as a lit, textured mesh.
+ * Curl WebGL2 renderer — draws the curling page as a lit, textured mesh.
  *
- * Pure rendering: it owns a WebGL2 context on a <canvas>, a tessellated unit
- * page mesh, and the front/back textures. Each frame it runs the cone deformer
- * ({@link deformConeMesh}) in JS, applies the rigid spine rotation, scales the
- * unit result into play-zone pixels, recomputes smooth normals, uploads, and
- * draws. The flat-fold DOM renderer remains the fallback; this is the opt-in
- * `variant="rounded"` path. No React, no DOM measurement here.
+ * Pure rendering: it owns a WebGL2 context on a <canvas>, a tessellated page
+ * mesh (grid from {@link buildConeMesh}), and the front/back textures. Each
+ * frame it wraps the mesh around a CYLINDER aligned to the fold crease
+ * (creaseMid + normal straight from the reflection fold), in play-zone
+ * pixels, with an adaptive radius that shrinks as the fold completes so the
+ * curl flattens onto the far side and hands off seamlessly to the flat DOM
+ * fold. Smooth normals are recomputed, uploaded and drawn with Lambert +
+ * specular lighting. (The cone deformer in coneDeformer.ts is NOT used by
+ * this renderer — it is kept only as a possible future asymmetric dog-ear
+ * model.) The flat-fold DOM renderer remains the fallback; this is the
+ * opt-in `variant="rounded"` path. No React, no DOM measurement here.
  */
 import { buildConeMesh } from '../../flip/coneDeformer';
 
