@@ -5,6 +5,8 @@ import {
   type Point,
   pointsToCssPolygon,
   shouldCompleteFold,
+  turnAnchorY,
+  turnTargetY,
 } from './geometry';
 
 const W = 400;
@@ -203,5 +205,50 @@ describe('pointsToCssPolygon', () => {
         { x: 2, y: 2 },
       ])
     ).toBeNull();
+  });
+});
+
+describe('turnOrigin math (programmatic turns)', () => {
+  it('anchors the simulated grab on the requested edge point', () => {
+    expect(turnAnchorY('top', H)).toBe(0);
+    expect(turnAnchorY('middle', H)).toBe(H / 2);
+    expect(turnAnchorY('bottom', H)).toBe(H);
+  });
+
+  it('starts and lands the target exactly on the anchor edge (no pop)', () => {
+    for (const origin of ['top', 'middle', 'bottom'] as const) {
+      expect(turnTargetY(origin, 0, H)).toBe(turnAnchorY(origin, H));
+      expect(turnTargetY(origin, 1, H)).toBeCloseTo(turnAnchorY(origin, H), 10);
+    }
+  });
+
+  it('corner grabs arc to the page middle at half-turn; a middle grab stays straight', () => {
+    expect(turnTargetY('top', 0.5, H)).toBeCloseTo(H / 2);
+    expect(turnTargetY('bottom', 0.5, H)).toBeCloseTo(H / 2);
+    for (const t of [0, 0.2, 0.5, 0.8, 1]) {
+      expect(turnTargetY('middle', t, H)).toBe(H / 2);
+    }
+  });
+
+  it('top and bottom arcs are mirror images: their Ys always sum to H', () => {
+    for (const t of [0, 0.1, 0.3, 0.5, 0.7, 0.9, 1]) {
+      expect(turnTargetY('top', t, H) + turnTargetY('bottom', t, H)).toBeCloseTo(H, 10);
+    }
+  });
+
+  it('the arc is monotone toward the middle and never overshoots it', () => {
+    let prev = turnTargetY('bottom', 0, H);
+    for (const t of [0.1, 0.2, 0.3, 0.4, 0.5]) {
+      const y = turnTargetY('bottom', t, H);
+      expect(y).toBeLessThanOrEqual(prev); // descending toward H/2
+      expect(y).toBeGreaterThanOrEqual(H / 2); // never past the middle
+      prev = y;
+    }
+  });
+
+  it('clamps an out-of-range eased value instead of arcing past the edge', () => {
+    expect(turnTargetY('bottom', -0.5, H)).toBe(H); // sin(0) is exact
+    expect(turnTargetY('bottom', 1.5, H)).toBeCloseTo(H, 10); // sin(π) ~ 1e-16
+    expect(turnTargetY('top', 2, H)).toBeCloseTo(0, 10);
   });
 });

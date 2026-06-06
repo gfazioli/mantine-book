@@ -2,6 +2,7 @@ import { render } from '@mantine-tests/core';
 import { fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { Book } from './Book';
+import { type BookContextValue, INHERITABLE_PROPS } from './Book.context';
 import { BookPage } from './BookPage';
 import { faceToTurnedPages, turnedPagesToFace } from './page-index';
 
@@ -355,5 +356,128 @@ describe('Book', () => {
     );
     expect(roots[0].style.getPropertyValue('--curl-page-background')).toBe('rgb(1, 2, 3)');
     expect(roots[1].style.getPropertyValue('--curl-page-background')).toBe('rgb(9, 9, 9)');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  PR-D hardening — z-boost, queue lock, edges, drift guard            */
+/* ------------------------------------------------------------------ */
+
+describe('Book stack hardening', () => {
+  const fastPages = (n: number) =>
+    Array.from({ length: n }, (_, i) => (
+      <Book.Page key={i} flippingTime={0}>
+        <Book.Page.Front>F{i}</Book.Page.Front>
+        <Book.Page.Back>B{i}</Book.Page.Back>
+      </Book.Page>
+    ));
+
+  const wrappersOf = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll<HTMLElement>('[class*="page"]'));
+  const zIndexes = (container: HTMLElement) =>
+    wrappersOf(container).map((wrap) => Number(wrap.style.zIndex));
+  const disabledStates = (container: HTMLElement) =>
+    wrappersOf(container).map(
+      (wrap) => (wrap.firstElementChild as HTMLElement).getAttribute('data-disabled') !== null
+    );
+
+  it('raises the stepping page above BOTH stacks in the very commit its step starts', async () => {
+    const { container } = render(<Book>{fastPages(3)}</Book>);
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    // At rest: right stack order (top page highest), nobody raised.
+    expect(zIndexes(container)).toEqual([3, 2, 1]);
+
+    fireEvent.keyDown(root, { key: 'ArrowRight' });
+    // Synchronously after the keydown — BEFORE the controller's first rAF
+    // tick fires onFold — the in-flight page must already be on top. (The
+    // old foldingIndex-driven boost left it one frame BELOW its neighbour:
+    // the start-of-turn flash.)
+    expect(zIndexes(container)[0]).toBe(3 + 2);
+
+    await waitFor(() => expect(flippedStates(container)).toEqual([true, false, false]));
+    // Settled: back to the regular stack orders (left stack: index + 1).
+    expect(zIndexes(container)).toEqual([1, 2, 1]);
+  });
+
+  it('raises the stepping page immediately on a BACKWARD turn too', () => {
+    const { container } = render(<Book defaultPage={5}>{fastPages(3)}</Book>);
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    fireEvent.keyDown(root, { key: 'ArrowLeft' });
+    // In-flight backward page = displayedTurned − 1 = page 2.
+    expect(zIndexes(container)[2]).toBe(3 + 2);
+  });
+
+  it('locks every page except the in-flight one while a queue step runs', () => {
+    const { container } = render(<Book>{fastPages(3)}</Book>);
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    fireEvent.keyDown(root, { key: 'End' });
+    // Step on page 0 is in flight: page 1 is top-of-right but LOCKED (it is
+    // not the in-flight page), page 2 is buried. Without the lock this would
+    // read [false, false, true] and two pages could fold at once.
+    expect(disabledStates(container)).toEqual([false, true, true]);
+  });
+
+  it('renders an empty pages array without crashing and announces nothing', () => {
+    const { container } = render(<Book pages={[]} />);
+    expect(wrappersOf(container)).toHaveLength(0);
+    const live = container.querySelector('[aria-live="polite"]');
+    expect(live?.textContent ?? '').toBe('');
+  });
+
+  it('renders a data-driven page with no back face (blank back, no crash)', () => {
+    const { getByText } = render(<Book pages={[{ front: 'OnlyFront' }]} />);
+    expect(getByText('OnlyFront')).toBeInTheDocument();
+  });
+
+  it('applies per-page props from the data-driven pages prop', () => {
+    const { container } = render(
+      <Book
+        pages={[
+          { front: 'F1', back: 'B1', props: { revealBackground: 'red' } },
+          { front: 'F2', back: 'B2' },
+        ]}
+      />
+    );
+    // Only the page that asked for it renders the reveal layer.
+    expect(container.querySelectorAll('[class*="revealLayer"]')).toHaveLength(1);
+  });
+
+  it('clamps a negative controlled page to the closed book', () => {
+    const { container } = render(<Book page={-3}>{threePages}</Book>);
+    expect(flippedStates(container)).toEqual([false, false, false]);
+  });
+
+  it('the shared inheritable list covers every BookContextValue key (drift guard)', () => {
+    type Missing = Exclude<keyof BookContextValue, (typeof INHERITABLE_PROPS)[number]>;
+    // Compile-time exhaustiveness: a key added to BookContextValue but not to
+    // INHERITABLE_PROPS turns the annotation below into a tuple type naming
+    // the missing key, and `true` no longer typechecks.
+    const exhaustive: [Missing] extends [never]
+      ? true
+      : ['INHERITABLE_PROPS is missing:', Missing] = true;
+    expect(exhaustive).toBe(true);
+    // And no duplicate entries.
+    expect(new Set(INHERITABLE_PROPS).size).toBe(INHERITABLE_PROPS.length);
+  });
+});
+
+describe('page-index roundtrip', () => {
+  it('face → turned → first-visible-face is a stable fixed point for every face', () => {
+    for (const total of [1, 2, 3, 5]) {
+      for (let face = -2; face <= 2 * total + 2; face++) {
+        const turned = faceToTurnedPages(face, total);
+        expect(turned).toBeGreaterThanOrEqual(0);
+        expect(turned).toBeLessThanOrEqual(total);
+        const reported = turnedPagesToFace(turned);
+        expect(reported).toBe(Math.max(0, 2 * turned - 1));
+        // The reported face maps back to the same turned count (fixed point):
+        // onPageChange → controlled page round-trips with no drift.
+        expect(faceToTurnedPages(reported, total)).toBe(turned);
+      }
+      // Liberal setter: both faces of a spread are the same state.
+      for (let spread = 1; spread <= total; spread++) {
+        expect(faceToTurnedPages(2 * spread - 1, total)).toBe(faceToTurnedPages(2 * spread, total));
+      }
+    }
   });
 });

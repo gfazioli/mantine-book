@@ -27,7 +27,12 @@ import React, {
 import type { CurlProps } from '../Curl/Curl';
 // Type-only pool import inside: never pulls the WebGL renderer in this chunk.
 import { CurlWebglPoolContext, type CurlWebglPoolHolder } from '../Curl/webgl/poolContext';
-import { BookContext, type BookContextValue, type BookInheritableProps } from './Book.context';
+import {
+  BookContext,
+  type BookContextValue,
+  type BookInheritableProps,
+  INHERITABLE_PROPS,
+} from './Book.context';
 import { BookPage, type BookPageProps } from './BookPage';
 import { faceToTurnedPages, turnedPagesToFace } from './page-index';
 import classes from './Book.module.css';
@@ -266,21 +271,6 @@ const BookSheet = memo(function BookSheet(props: BookSheetProps) {
   );
 });
 
-const INHERITABLE: (keyof BookContextValue)[] = [
-  'variant',
-  'align',
-  'shadowOpacity',
-  'shadowColor',
-  'pageBackground',
-  'curlRadius',
-  'flippingTime',
-  'flipThreshold',
-  'swipeDistance',
-  'swipeTimeThreshold',
-  'mobileScrollSupport',
-  'turnOrigin',
-];
-
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
@@ -363,7 +353,7 @@ export const Book = factory<BookFactory>((_props) => {
     turnOrigin,
   };
   const ctxValue: BookContextValue = {};
-  for (const key of INHERITABLE) {
+  for (const key of INHERITABLE_PROPS) {
     if (ctxSource[key] !== undefined) {
       (ctxValue as Record<string, unknown>)[key] = ctxSource[key];
     }

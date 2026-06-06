@@ -1,5 +1,5 @@
 import { render } from '@mantine-tests/core';
-import { fireEvent } from '@testing-library/react';
+import { act, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { Curl } from './Curl';
 
@@ -92,5 +92,190 @@ describe('Curl', () => {
     expect(() =>
       fireEvent.pointerDown(root, { clientX: 580, clientY: 40, pointerId: 1, button: 0 })
     ).not.toThrow();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Release semantics — the controller's complete / snap-back decision  */
+/* ------------------------------------------------------------------ */
+
+describe('Curl release semantics', () => {
+  // jsdom rects are 0×0 at 0,0 → page-local x = clientX − W (W = 300 below).
+  // NOTE: fireEvent's pointer events in jsdom do NOT carry clientX/clientY
+  // (local coords become NaN and every release degrades to a snap-back), so
+  // these tests dispatch synthetic native events with the props assigned.
+  const W = 300;
+  const H = 600;
+
+  const firePointer = (
+    target: EventTarget,
+    type: 'pointerdown' | 'pointermove' | 'pointerup',
+    props: Record<string, unknown>
+  ) => {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.assign(event, { pointerId: 1, pointerType: 'mouse', button: 0, ...props });
+    act(() => {
+      target.dispatchEvent(event);
+    });
+  };
+
+  const renderCurl = () => {
+    const onFold = jest.fn();
+    const onFlip = jest.fn();
+    const utils = render(
+      <Curl width={W} height={H} flippingTime={0} onFold={onFold} onFlip={onFlip}>
+        <Curl.Front>F</Curl.Front>
+        <Curl.Back>B</Curl.Back>
+      </Curl>
+    );
+    const root = utils.container.querySelector('[class*="root"]') as HTMLElement;
+    return { ...utils, root, onFold, onFlip };
+  };
+
+  it('completes a past-threshold drag: the page turns and reports flipped=true', async () => {
+    const { root, onFold, onFlip } = renderCurl();
+    // Grab the free edge (local x = W) and sweep well past the spine.
+    firePointer(root, 'pointerdown', { clientX: W + W, clientY: 300 });
+    firePointer(window, 'pointermove', { clientX: W + 100, clientY: 300 });
+    firePointer(window, 'pointermove', { clientX: 40, clientY: 300 });
+    expect(onFold).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'move', progress: expect.any(Number) })
+    );
+    expect(onFold.mock.calls.at(-1)![0].progress).toBeGreaterThan(50);
+    firePointer(window, 'pointerup', { clientX: 40, clientY: 300 });
+    await waitFor(() => expect(onFlip).toHaveBeenCalledWith({ flipped: true }));
+    expect(root.getAttribute('data-flipped')).not.toBeNull();
+  });
+
+  it('snaps back a slow short drag (under the threshold, not a swipe)', async () => {
+    const { root, onFold, onFlip } = renderCurl();
+    firePointer(root, 'pointerdown', { clientX: W + W, clientY: 300 });
+    firePointer(window, 'pointermove', { clientX: W + W - 80, clientY: 300 });
+    expect(onFold.mock.calls.at(-1)![0].progress).toBeLessThan(50);
+    // Slow release: duration must exceed swipeTimeThreshold (250ms) so the
+    // gesture is a DRAG — a fast release would be a swipe and complete.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    firePointer(window, 'pointermove', { clientX: W + W - 81, clientY: 300 });
+    firePointer(window, 'pointerup', { clientX: W + W - 81, clientY: 300 });
+    await waitFor(() => expect(onFlip).toHaveBeenCalledWith({ flipped: false }));
+    expect(root.getAttribute('data-flipped')).toBeNull();
+  });
+
+  it('completes a fast swipe toward the spine even under the threshold', async () => {
+    const { root, onFold, onFlip } = renderCurl();
+    firePointer(root, 'pointerdown', { clientX: W + W, clientY: 300 });
+    // Short sweep (progress well under 50) but decisive toward the spine.
+    firePointer(window, 'pointermove', { clientX: W + W - 100, clientY: 300 });
+    expect(onFold.mock.calls.at(-1)![0].progress).toBeLessThan(50);
+    firePointer(window, 'pointerup', { clientX: W + W - 100, clientY: 300 });
+    await waitFor(() => expect(onFlip).toHaveBeenCalledWith({ flipped: true }));
+  });
+
+  it('a click (no real drag) settles back without turning', () => {
+    const { root, onFlip } = renderCurl();
+    firePointer(root, 'pointerdown', { clientX: W + W, clientY: 300 });
+    firePointer(window, 'pointerup', { clientX: W + W, clientY: 300 });
+    expect(onFlip).toHaveBeenCalledWith({ flipped: false });
+    expect(root.getAttribute('data-flipped')).toBeNull();
+  });
+});
+
+describe('Curl grabZone', () => {
+  const restSheetOf = (container: HTMLElement) =>
+    container.querySelector('[class*="restSheet"]') as HTMLElement;
+  const rootOf = (container: HTMLElement) =>
+    container.querySelector('[class*="root"]') as HTMLElement;
+
+  it('play-zone (default): the root is the gesture surface', () => {
+    const { container } = render(
+      <Curl width={300} height={600}>
+        <Curl.Front>F</Curl.Front>
+      </Curl>
+    );
+    expect(rootOf(container).style.pointerEvents).not.toBe('none');
+    expect(restSheetOf(container).style.pointerEvents).not.toBe('auto');
+  });
+
+  it('sheet: the root passes pointers through and the resting sheet re-enables them', () => {
+    const { container } = render(
+      <Curl width={300} height={600} grabZone="sheet">
+        <Curl.Front>F</Curl.Front>
+      </Curl>
+    );
+    expect(rootOf(container).style.pointerEvents).toBe('none');
+    expect(restSheetOf(container).style.pointerEvents).toBe('auto');
+  });
+
+  it('sheet + disabled: the resting sheet does NOT re-enable pointers', () => {
+    const { container } = render(
+      <Curl width={300} height={600} grabZone="sheet" disabled>
+        <Curl.Front>F</Curl.Front>
+      </Curl>
+    );
+    expect(rootOf(container).style.pointerEvents).toBe('none');
+    expect(restSheetOf(container).style.pointerEvents).not.toBe('auto');
+  });
+
+  it('sheet: a grab starting on the resting sheet drives the fold (bubbles to the root handlers)', () => {
+    const onFold = jest.fn();
+    const { container } = render(
+      <Curl width={300} height={600} grabZone="sheet" onFold={onFold}>
+        <Curl.Front>F</Curl.Front>
+        <Curl.Back>B</Curl.Back>
+      </Curl>
+    );
+    const restSheet = restSheetOf(container);
+    const down = new Event('pointerdown', { bubbles: true, cancelable: true });
+    Object.assign(down, {
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      clientX: 580,
+      clientY: 300,
+    });
+    const move = new Event('pointermove', { bubbles: true });
+    Object.assign(move, { pointerId: 1, pointerType: 'mouse', clientX: 400, clientY: 300 });
+    act(() => {
+      restSheet.dispatchEvent(down);
+      window.dispatchEvent(move);
+    });
+    expect(onFold).toHaveBeenCalledWith(expect.objectContaining({ phase: 'move' }));
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Reveal layer — side-awareness                                       */
+/* ------------------------------------------------------------------ */
+
+describe('Curl reveal layer', () => {
+  const revealOf = (container: HTMLElement) =>
+    container.querySelector('[class*="revealLayer"]') as HTMLElement | null;
+
+  it('rests under the RIGHT half before the turn (left = W)', () => {
+    const { container } = render(
+      <Curl width={300} height={600} revealBackground="red">
+        <Curl.Front>F</Curl.Front>
+      </Curl>
+    );
+    expect(revealOf(container)!.style.left).toBe('300px');
+  });
+
+  it('follows the sheet to the LEFT half once flipped (left = 0)', () => {
+    const { container } = render(
+      <Curl width={300} height={600} revealBackground="red" flipped>
+        <Curl.Front>F</Curl.Front>
+        <Curl.Back>B</Curl.Back>
+      </Curl>
+    );
+    expect(revealOf(container)!.style.left).toBe('0px');
+  });
+
+  it('is not rendered at all when revealBackground is unset', () => {
+    const { container } = render(
+      <Curl width={300} height={600}>
+        <Curl.Front>F</Curl.Front>
+      </Curl>
+    );
+    expect(revealOf(container)).toBeNull();
   });
 });
