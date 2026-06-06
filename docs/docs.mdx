@@ -94,7 +94,9 @@ more. With `variant="rounded"` the whole book shares **one WebGL context**
 face snapshots warm — a buried page captures on demand the moment its turn
 starts, and the in-between steps of a riffle skip the WebGL pipeline
 entirely. So the 100-page book below costs the same GPU resources as a
-single sheet. Drag the slider for a long riffle across the rainbow:
+single sheet — each page's hue advances by the golden angle, so
+neighbouring pages contrast strongly while the whole book still spans the
+color wheel. Drag the slider for a long riffle:
 
 <Demo data={demos.largeBook} />
 

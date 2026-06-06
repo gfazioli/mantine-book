@@ -60,22 +60,19 @@ const PAGE_COUNT = 100;
 const W = 220;
 const H = 300;
 
-// Hue sweeps the full wheel across the 200 faces, so a riffle reads as a
-// continuous rainbow and any landing spot is visually unique.
-const PAGES: BookPageData[] = Array.from({ length: PAGE_COUNT }, (_, index) => ({
-  front: (
-    <Face
-      label={`${index * 2 + 1}`}
-      color={`hsl(${Math.round((index * 2 * 360) / (PAGE_COUNT * 2))} 62% 46%)`}
-    />
-  ),
-  back: (
-    <Face
-      label={`${index * 2 + 2}`}
-      color={`hsl(${Math.round(((index * 2 + 1) * 360) / (PAGE_COUNT * 2))} 62% 38%)`}
-    />
-  ),
-}));
+// Hue advances by the GOLDEN ANGLE (~137.5°) per page: adjacent pages land
+// far apart on the color wheel (strong contrast while riffling — a smooth
+// gradient made neighbours nearly identical) while the whole book still
+// covers the wheel evenly. Front and back share the page's hue (back darker)
+// so the two faces read as the same physical sheet.
+const GOLDEN_ANGLE = 137.508;
+const PAGES: BookPageData[] = Array.from({ length: PAGE_COUNT }, (_, index) => {
+  const hue = Math.round((index * GOLDEN_ANGLE) % 360);
+  return {
+    front: <Face label={`${index * 2 + 1}`} color={`hsl(${hue} 62% 46%)`} />,
+    back: <Face label={`${index * 2 + 2}`} color={`hsl(${hue} 62% 32%)`} />,
+  };
+});
 
 function Demo() {
   const [page, setPage] = useState(0);
