@@ -104,8 +104,19 @@ describe('Curl release semantics', () => {
   // NOTE: fireEvent's pointer events in jsdom do NOT carry clientX/clientY
   // (local coords become NaN and every release degrades to a snap-back), so
   // these tests dispatch synthetic native events with the props assigned.
+  // Gesture timing runs on a mocked performance.now() clock (no real sleeps);
+  // the settle animator is immune (flippingTime=0 → raw=1 on the first tick).
   const W = 300;
   const H = 600;
+
+  let now = 0;
+  beforeEach(() => {
+    now = 1_000;
+    jest.spyOn(performance, 'now').mockImplementation(() => now);
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
   const firePointer = (
     target: EventTarget,
@@ -152,9 +163,9 @@ describe('Curl release semantics', () => {
     firePointer(root, 'pointerdown', { clientX: W + W, clientY: 300 });
     firePointer(window, 'pointermove', { clientX: W + W - 80, clientY: 300 });
     expect(onFold.mock.calls.at(-1)![0].progress).toBeLessThan(50);
-    // Slow release: duration must exceed swipeTimeThreshold (250ms) so the
-    // gesture is a DRAG — a fast release would be a swipe and complete.
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Slow release: the mocked clock advances past swipeTimeThreshold (250ms)
+    // so the gesture is a DRAG — a fast release would be a swipe and complete.
+    now += 300;
     firePointer(window, 'pointermove', { clientX: W + W - 81, clientY: 300 });
     firePointer(window, 'pointerup', { clientX: W + W - 81, clientY: 300 });
     await waitFor(() => expect(onFlip).toHaveBeenCalledWith({ flipped: false }));
