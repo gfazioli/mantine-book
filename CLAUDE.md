@@ -66,9 +66,9 @@ Rollup → dual ESM/CJS with `'use client'` banner. CSS modules hashed with `has
 - **Animation model**: no perpetual `requestAnimationFrame` — the sheet is quiescent at rest. The rAF loop runs only during a drag or the release settle.
 - **Pointer events**: single PointerEvents handler. `touch-action: pan-y` keeps vertical scroll working; `mobileScrollSupport` (default true) waits for a horizontal-biased gesture before claiming the touch.
 - **Shadows**: derived from the crease (`computeFoldShadow`). The `shadowLayer` SVG overlay paints the reflected flap with a gradient anchored at the crease (dark where the page curves away → transparent at the free edge); the cast halo is a `drop-shadow` filter on `curlSheet`. Both scale with `shadowOpacity` and a `sin(progress·π)` strength curve (0 at rest, peak mid-fold, 0 at a full turn).
-- **Styles API names**: `root`, `restSheet`, `curlSheet`, `shadowLayer`, `face`. CSS vars on `root`: `--curl-page-width`, `--curl-page-height`, `--curl-page-background`, `--curl-shadow-color` (plus `--curl-reveal-background`, reserved for the forthcoming reveal layer).
+- **Styles API names**: `root`, `restSheet`, `curlSheet`, `shadowLayer`, `revealLayer`, `face` (Curl/page level) and `root`, `page` (Book level). CSS vars on `root`: `--curl-page-width`, `--curl-page-height`, `--curl-page-background`, `--curl-shadow-color`, `--curl-reveal-background`.
 
-> **Not yet implemented**: the reveal layer (`revealBackground` / `--curl-reveal-background` / a `bottomFace`) and a `withCover` mode. The `Book` stack SHIPPED (public API). The true curved curl ships as `variant="rounded"` (WebGL); the `flat` variant remains a sharp clip + crease gradient by design (the universal fallback).
+> **Not yet implemented**: a `withCover` mode (first page standing alone, StPageFlip-style). Everything else SHIPPED: the `Book` stack (public API), the reveal layer at BOTH levels (`Book.revealBackground` = inside-cover base on the Book root via `--curl-reveal-background`; `Book.Page.revealBackground` = the per-page `revealLayer`, side-aware: left = W at rest, 0 once flipped), and the true curved curl as `variant="rounded"` (WebGL); the `flat` variant remains a sharp clip + crease gradient by design (the universal fallback).
 
 ## Testing
 
