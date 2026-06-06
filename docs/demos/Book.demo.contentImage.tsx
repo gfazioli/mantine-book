@@ -24,10 +24,20 @@ ${
       <Book.Page>
         <Book.Page.Front>
           {/* crossOrigin keeps the snapshot origin-clean for the rounded variant */}
-          <img src="${FRONT_IMG}" alt="" crossOrigin="anonymous" style={imgStyle} />
+          <img
+            src="${FRONT_IMG}"
+            alt="Front cover artwork"
+            crossOrigin="anonymous"
+            style={imgStyle}
+          />
         </Book.Page.Front>
         <Book.Page.Back>
-          <img src="${BACK_IMG}" alt="" crossOrigin="anonymous" style={imgStyle} />
+          <img
+            src="${BACK_IMG}"
+            alt="Back cover artwork"
+            crossOrigin="anonymous"
+            style={imgStyle}
+          />
         </Book.Page.Back>
       </Book.Page>
     </Book>
