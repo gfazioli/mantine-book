@@ -87,6 +87,16 @@ export interface CurlBaseProps {
   disabled?: boolean;
 
   /**
+   * `variant="rounded"` only: keep the face snapshots (the WebGL textures)
+   * captured eagerly at rest, so a fold starts with its textures ready. The
+   * Book sets this on the two top-of-stack pages and clears it on buried
+   * ones — a big book pays for one warm spread instead of a snapshot per
+   * page. When `false` the capture runs on demand as the fold starts (the
+   * flat fold shows until the first WebGL frame lands). @default true
+   */
+  warmSnapshots?: boolean;
+
+  /**
    * Controlled resting side: `false` rests in the right half, `true` in the
    * left half (turned). When set, external changes run an animated turn onto
    * the new side; use together with `onFlip` to own the state (the Book does
@@ -243,6 +253,7 @@ export const Curl = factory<CurlFactory>((_props) => {
     revealBackground,
     curlRadius,
     disabled,
+    warmSnapshots,
     flipped: flippedProp,
     grabZone,
     turnOrigin,
@@ -382,6 +393,15 @@ export const Curl = factory<CurlFactory>((_props) => {
 
   // In rounded mode the WebGL cone replaces the DOM flap while folding.
   const webglActive = rounded && folding;
+  // True once the shared canvas holds a frame for the CURRENT fold: the DOM
+  // resting sheet stays visible (flat clipped fold) until then, so the page
+  // beneath never flashes through before the first WebGL frame.
+  const [webglReady, setWebglReady] = useState(false);
+  // Until that frame lands, the DOM reflection flap stands in for the WebGL
+  // curl (always in flat mode): a rounded fold whose snapshots are still
+  // capturing shows the genuine flat fold — flap included — instead of half a
+  // page retreating with nothing lifting.
+  const flatFoldVisible = !rounded || (webglActive && !webglReady);
   // Curl radius for the WebGL wrap; default lets a full drag turn the page.
   const radius = curlRadius ?? Math.round(W * 0.32);
   // Resolved shadow color (a CSS string) for the WebGL self-shadow tint — the
@@ -441,8 +461,9 @@ export const Curl = factory<CurlFactory>((_props) => {
             // Re-enable pointers on the resting half when the root is a
             // pass-through surface (grabZone="sheet").
             ...(sheetGrab && !disabled ? { pointerEvents: 'auto' } : null),
-            // While the WebGL cone is drawing, it shows the whole page itself.
-            ...(webglActive
+            // While the WebGL curl is drawing it shows the whole page itself;
+            // until its first frame lands, keep the flat clipped fold visible.
+            ...(webglActive && webglReady
               ? { display: 'none' }
               : folding && flatClip
                 ? { clipPath: flatClip, WebkitClipPath: flatClip }
@@ -456,9 +477,10 @@ export const Curl = factory<CurlFactory>((_props) => {
       {/* The lifting flap (the opposite face), clipped to the flap region and
           reflected across the crease (the det −1 matrix also mirrors it to show
           the back). Sits on the resting side; overflow stays visible so the
-          reflected flap can sweep across the spine to the other half. Skipped in
-          rounded mode, where the WebGL cone draws the lifting page instead. */}
-      {!rounded && (
+          reflected flap can sweep across the spine to the other half. In
+          rounded mode the WebGL curl draws the lifting page instead — but the
+          DOM flap still stands in until the first WebGL frame is ready. */}
+      {flatFoldVisible && (
         <div
           {...getStyles('curlSheet', {
             style: curlVisible
@@ -485,9 +507,10 @@ export const Curl = factory<CurlFactory>((_props) => {
       {/* Curl shading: a gradient over the reflected flap (dark at the crease →
           transparent at the free edge), painted in an SVG overlay that spans the
           whole play-zone (so page coords map as x + W). The cast halo is the
-          curlSheet's drop-shadow filter above. Flat mode only — WebGL lights its
-          own cone. */}
-      {!rounded && shadow && curlVisible && shadowPoints && (
+          curlSheet's drop-shadow filter above. Follows the DOM flap (flat mode,
+          or the rounded stand-in before the first WebGL frame) — WebGL lights
+          its own curl. */}
+      {flatFoldVisible && shadow && curlVisible && shadowPoints && (
         <svg {...getStyles('shadowLayer')} width={W * 2} height={H} aria-hidden="true">
           <defs>
             <linearGradient
@@ -527,7 +550,9 @@ export const Curl = factory<CurlFactory>((_props) => {
             shadowColor={resolvedShadowColor}
             frontContent={restFaceNode}
             backContent={liftFaceNode}
+            warm={warmSnapshots}
             onUnavailable={() => setWebglFailed(true)}
+            onReadyChange={setWebglReady}
           />
         </Suspense>
       )}
