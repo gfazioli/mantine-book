@@ -95,7 +95,7 @@ describe('Curl', () => {
     }).not.toThrow();
   });
 
-  it('tolerates pointer events that carry no coordinates (NaN-safe)', () => {
+  it('tolerates pointer events that carry no coordinates (NaN-safe)', async () => {
     // jsdom's fireEvent pointer events DROP clientX/clientY, so page-local
     // coords compute to NaN — the engine must degrade gracefully (settle as a
     // snap-back), never throw. Kept deliberately as a degenerate-input guard.
@@ -112,6 +112,10 @@ describe('Curl', () => {
       fireEvent.pointerMove(root, { pointerId: 1 });
       fireEvent.pointerUp(root, { pointerId: 1 });
     }).not.toThrow();
+    // And it really settles as a snap-back: the page never turns.
+    await waitFor(() => expect(onFlip).toHaveBeenCalledWith({ flipped: false }));
+    expect(onFlip).not.toHaveBeenCalledWith({ flipped: true });
+    expect(root.getAttribute('data-flipped')).toBeNull();
   });
 
   it('does not attach drag handlers when disabled', () => {
