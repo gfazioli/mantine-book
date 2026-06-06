@@ -75,9 +75,42 @@ describe('Curl', () => {
     const root = container.querySelector('[class*="root"]') as HTMLElement;
     expect(root).toBeTruthy();
     expect(() => {
-      fireEvent.pointerDown(root, { clientX: 580, clientY: 40, pointerId: 1, button: 0 });
-      fireEvent.pointerMove(root, { clientX: 400, clientY: 60, pointerId: 1 });
-      fireEvent.pointerUp(root, { clientX: 400, clientY: 60, pointerId: 1 });
+      const down = new Event('pointerdown', { bubbles: true, cancelable: true });
+      Object.assign(down, {
+        clientX: 580,
+        clientY: 40,
+        pointerId: 1,
+        pointerType: 'mouse',
+        button: 0,
+      });
+      const move = new Event('pointermove', { bubbles: true });
+      Object.assign(move, { clientX: 400, clientY: 60, pointerId: 1, pointerType: 'mouse' });
+      const up = new Event('pointerup', { bubbles: true });
+      Object.assign(up, { clientX: 400, clientY: 60, pointerId: 1, pointerType: 'mouse' });
+      act(() => {
+        root.dispatchEvent(down);
+        window.dispatchEvent(move);
+        window.dispatchEvent(up);
+      });
+    }).not.toThrow();
+  });
+
+  it('tolerates pointer events that carry no coordinates (NaN-safe)', () => {
+    // jsdom's fireEvent pointer events DROP clientX/clientY, so page-local
+    // coords compute to NaN — the engine must degrade gracefully (settle as a
+    // snap-back), never throw. Kept deliberately as a degenerate-input guard.
+    const onFlip = jest.fn();
+    const { container } = render(
+      <Curl width={300} height={600} flippingTime={0} onFlip={onFlip}>
+        <Curl.Front>F</Curl.Front>
+        <Curl.Back>B</Curl.Back>
+      </Curl>
+    );
+    const root = container.querySelector('[class*="root"]') as HTMLElement;
+    expect(() => {
+      fireEvent.pointerDown(root, { pointerId: 1, button: 0 });
+      fireEvent.pointerMove(root, { pointerId: 1 });
+      fireEvent.pointerUp(root, { pointerId: 1 });
     }).not.toThrow();
   });
 
