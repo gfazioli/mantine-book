@@ -597,7 +597,7 @@ export const Curl = factory<CurlFactory>((_props) => {
           live faces stay mounted as the restSheet above (interactive at rest)
           and are snapshotted to textures during the curl. Falls back to the flat
           DOM fold if WebGL is unavailable or a snapshot taints. */}
-      {rounded && (
+      {rounded && hard !== true && (
         <Suspense fallback={null}>
           <CurlWebglLayer
             width={W}

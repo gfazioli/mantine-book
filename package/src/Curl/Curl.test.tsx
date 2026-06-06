@@ -403,6 +403,20 @@ describe('Curl hard (rigid page)', () => {
     expect(container.querySelector('[class*="hardSheet"]')).toBeNull();
   });
 
+  it('never mounts the WebGL layer for a rigid page, even in rounded books', () => {
+    // A hard cover inside a rounded book must stay pure DOM: no lazy WebGL
+    // chunk, no warm snapshot machinery (the layer used to mount inactive
+    // and still pay the captures for top-of-stack covers).
+    const { container } = render(
+      <Curl width={300} height={600} variant="rounded" hard warmSnapshots>
+        <Curl.Front>F</Curl.Front>
+        <Curl.Back>B</Curl.Back>
+      </Curl>
+    );
+    // The layer's positioned canvas mount is its DOM fingerprint.
+    expect(container.querySelector('[aria-hidden="true"][style*="z-index: 6"]')).toBeNull();
+  });
+
   it('renders both faces inside the rotating sheet (back pre-rotated)', () => {
     const { container, root } = renderHard();
     firePointer(root, 'pointerdown', { clientX: W + W, clientY: 300 });
