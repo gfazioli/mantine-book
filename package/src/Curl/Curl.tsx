@@ -38,6 +38,7 @@ export type CurlStylesNames =
   | 'root'
   | 'restSheet'
   | 'curlSheet'
+  | 'hardSheet'
   | 'shadowLayer'
   | 'revealLayer'
   | 'face';
@@ -97,6 +98,15 @@ export interface CurlBaseProps {
   warmSnapshots?: boolean;
 
   /**
+   * Turn this page RIGID, like a hard cover: the whole sheet rotates flat
+   * around the spine (3D, under the play-zone perspective) instead of
+   * curling. Dragging, thresholds, swipes and callbacks behave exactly like
+   * a soft page — only the rendering differs (no fold, no WebGL). Inside a
+   * Book, `withCover` marks the first and last pages hard. @default false
+   */
+  hard?: boolean;
+
+  /**
    * Controlled resting side: `false` rests in the right half, `true` in the
    * left half (turned). When set, external changes run an animated turn onto
    * the new side; use together with `onFlip` to own the state (the Book does
@@ -138,7 +148,7 @@ export interface CurlBaseProps {
   mobileScrollSupport?: boolean;
 
   /** Called as the fold changes (during drag and during the settle animation). */
-  onFold?: (info: { progress: number; phase: 'move' | 'settle' }) => void;
+  onFold?: (info: { progress: number; phase: 'grab' | 'move' | 'settle' }) => void;
 
   /** Called once when a release settle finishes, with the resting state. */
   onFlip?: (info: { flipped: boolean }) => void;
@@ -254,6 +264,7 @@ export const Curl = factory<CurlFactory>((_props) => {
     curlRadius,
     disabled,
     warmSnapshots,
+    hard,
     flipped: flippedProp,
     grabZone,
     turnOrigin,
@@ -391,8 +402,22 @@ export const Curl = factory<CurlFactory>((_props) => {
     : undefined;
   const curlVisible = folding && flapClip !== null;
 
+  // A RIGID page replaces the fold entirely with a flat 3D rotation around
+  // the spine — driven by the same controller (drag, thresholds, settle),
+  // only the rendering differs. No WebGL, no clip, no crease.
+  const hardActive = hard === true && folding;
+  // θ from the fold progress so the free edge TRACKS the drag target
+  // (x = W·cosθ ⇒ θ = acos(x/W), with x/W = ±(1 − progress/50) by resting
+  // side). progress 0 → resting edge, 50 → upright on the spine (=
+  // flipThreshold's default: past vertical it falls to the other side),
+  // 100 → landed flat. A null fold (settle not yet ticking) keeps the
+  // resting pose, so the swap with restSheet is seamless.
+  const hardProgress = fold?.progress ?? 0;
+  const hardX = flipped ? hardProgress / 50 - 1 : 1 - hardProgress / 50;
+  const hardAngle = hardActive ? Math.acos(Math.max(-1, Math.min(1, hardX))) : 0;
+
   // In rounded mode the WebGL cone replaces the DOM flap while folding.
-  const webglActive = rounded && folding;
+  const webglActive = rounded && folding && hard !== true;
   // True once the shared canvas holds a frame for the CURRENT fold: the DOM
   // resting sheet stays visible (flat clipped fold) until then, so the page
   // beneath never flashes through before the first WebGL frame.
@@ -400,8 +425,8 @@ export const Curl = factory<CurlFactory>((_props) => {
   // Until that frame lands, the DOM reflection flap stands in for the WebGL
   // curl (always in flat mode): a rounded fold whose snapshots are still
   // capturing shows the genuine flat fold — flap included — instead of half a
-  // page retreating with nothing lifting.
-  const flatFoldVisible = !rounded || (webglActive && !webglReady);
+  // page retreating with nothing lifting. A rigid page never shows the flap.
+  const flatFoldVisible = !hardActive && (!rounded || (webglActive && !webglReady));
   // Curl radius for the WebGL wrap; default lets a full drag turn the page.
   const radius = curlRadius ?? Math.round(W * 0.32);
   // Resolved shadow color (a CSS string) for the WebGL self-shadow tint — the
@@ -440,7 +465,7 @@ export const Curl = factory<CurlFactory>((_props) => {
       {...getStyles('root', { style: sheetGrab ? { pointerEvents: 'none' } : undefined })}
       {...others}
       {...dragHandlers}
-      mod={[{ folding, flipped, disabled }, mod]}
+      mod={[{ folding, flipped, disabled, hard }, mod]}
     >
       {/* Reveal layer: what the curl uncovers UNDER this page. Painted only
           when `revealBackground` is set — sits beneath the resting sheet on
@@ -461,9 +486,10 @@ export const Curl = factory<CurlFactory>((_props) => {
             // Re-enable pointers on the resting half when the root is a
             // pass-through surface (grabZone="sheet").
             ...(sheetGrab && !disabled ? { pointerEvents: 'auto' } : null),
-            // While the WebGL curl is drawing it shows the whole page itself;
-            // until its first frame lands, keep the flat clipped fold visible.
-            ...(webglActive && webglReady
+            // While the WebGL curl (or the rigid hard sheet) is drawing it
+            // shows the whole page itself; until the WebGL first frame
+            // lands, keep the flat clipped fold visible.
+            ...(hardActive || (webglActive && webglReady)
               ? { display: 'none' }
               : folding && flatClip
                 ? { clipPath: flatClip, WebkitClipPath: flatClip }
@@ -473,6 +499,40 @@ export const Curl = factory<CurlFactory>((_props) => {
       >
         {restFaceNode}
       </div>
+
+      {/* RIGID page (hard cover): the whole sheet rotates flat around the
+          spine under the root's perspective. Front face up at rest; the
+          pre-rotated back face becomes visible past the vertical. Shadow is
+          a drop-shadow peaking at the upright pose (sin θ). */}
+      {hardActive && (
+        <div
+          {...getStyles('hardSheet', {
+            style: {
+              // NEGATIVE: the free edge lifts TOWARD the viewer (out of the
+              // desk) as it sweeps over the spine, like a real cover.
+              transform: `rotateY(${((-hardAngle * 180) / Math.PI).toFixed(3)}deg)`,
+              // Shadow as box-shadow, NOT filter: a filter forces
+              // transform-style to flatten, which kills the backface culling
+              // and showed the mirrored front instead of the back face past
+              // the vertical. box-shadow rotates with the sheet and keeps
+              // the 3D context intact. Peaks at the upright pose (sin θ).
+              boxShadow:
+                shadowOp > 0
+                  ? `0 ${(2 + 4 * Math.sin(hardAngle)).toFixed(1)}px ` +
+                    `${(8 + 22 * Math.sin(hardAngle)).toFixed(1)}px ` +
+                    `color-mix(in srgb, var(--curl-shadow-color) ` +
+                    `${(shadowOp * Math.sin(hardAngle) * 45).toFixed(1)}%, transparent)`
+                  : undefined,
+            },
+          })}
+          aria-hidden="true"
+        >
+          {/* frontNode/backNode already carry the 'face' styles — these
+              wrappers only add the 3D-face framing (backface-hidden). */}
+          <div className={classes.hardFace}>{frontNode}</div>
+          <div className={`${classes.hardFace} ${classes.hardFaceBack}`}>{backNode}</div>
+        </div>
+      )}
 
       {/* The lifting flap (the opposite face), clipped to the flap region and
           reflected across the crease (the det −1 matrix also mirrors it to show

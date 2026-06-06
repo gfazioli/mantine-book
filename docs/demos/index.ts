@@ -15,3 +15,4 @@ export { release } from './Book.demo.release';
 export { shadow } from './Book.demo.shadow';
 export { usage } from './Book.demo.usage';
 export { variant } from './Book.demo.variant';
+export { withCover } from './Book.demo.withCover';
