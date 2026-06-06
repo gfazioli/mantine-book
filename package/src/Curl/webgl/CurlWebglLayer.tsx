@@ -340,6 +340,18 @@ export function CurlWebglLayer(props: CurlWebglLayerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captureKey, warm, active]);
 
+  // Evict the cached snapshots once the page goes COLD (not warm, not
+  // folding): without this, paging through a big book would accumulate two
+  // decoded bitmaps per VISITED page — memory scaling with pages visited
+  // instead of with the warm spread. A cold page that surfaces again
+  // recaptures eagerly (warm) or on demand as its fold starts.
+  useEffect(() => {
+    if (!warm && !active) {
+      imagesRef.current = { front: null, back: null };
+      cachedKeyRef.current = null;
+    }
+  }, [warm, active]);
+
   // Draw each frame while folding (lease held + textures uploaded). This is
   // also where `ready` usually turns on: the first fold of a programmatic
   // turn lands here on the first rAF tick, right after the acquire drew
