@@ -30,112 +30,6 @@ back the other way. The simplest book is a single page:
 
 <Demo data={demos.usage} />
 
-## Multi-page books
-
-Stack several pages and the Book behaves like a real book. Drag the right
-half to turn the current page forward and the left half to turn the previous
-one back. While a page curls, the page beneath shows through — the next one
-going forward, the previous one going back. Visual and gesture props set on
-the Book (variant, shadows, timings…) are inherited by every page via
-optional context, and any page can override them locally.
-
-The page state follows the usual Mantine controlled/uncontrolled pattern:
-`page` + `onPageChange` for controlled, `defaultPage` for uncontrolled. The
-index counts faces: page `i` has its front at `2i` and its back at `2i + 1`,
-so `0` shows the closed book and `1` shows the first page turned. Both faces
-of a spread are equivalent as a setter; `onPageChange` reports the first
-visible face in reading order.
-
-<Demo data={demos.group} />
-
-### Data-driven pages
-
-Instead of children, pass a `pages` array of `{ front, back, props? }`
-objects — handy when the book is built from data (a gallery, a CMS, a PDF
-manifest). The optional `props` entry carries per-page overrides and wins
-over the Book's inherited props:
-
-<Demo data={demos.pages} />
-
-### Standalone page
-
-A `Book.Page` also works on its own, outside any `Book` — it sizes itself
-with its own `width` / `height` and turns like a single sheet. Inside a
-`Book`, the book's `width` / `height` apply to every page instead:
-
-<Demo data={demos.standalonePage} />
-
-### External navigation
-
-Because `page` is controlled, the book can be driven entirely from outside —
-arrows, a pagination, keyboard shortcuts. A programmatic page change runs the
-same settle animation as a completed drag: `turnOrigin` picks the simulated
-grab point — `bottom` or `top` curl from that corner with a diagonal crease,
-`middle` folds the page straight over — and `flippingTime` sets the speed
-(tune both below). Dragging the pages keeps working alongside the controls.
-
-Turns are **queued, one page in flight at a time**: rapid clicks or key
-presses never overlap two animations — they accumulate and the book riffles
-through them in order, compressing the per-page duration on long jumps so
-the whole run fits the `riffleDuration` budget (one second by default —
-slow it down below to watch every page go by). The in-between pages of a
-riffle turn with the flat fold whatever the variant — at riffle speed the
-curl is indistinguishable, and the flat path keeps long runs smooth — while
-the final landing page turns with the book's variant. Try hammering the
-next arrow.
-
-<Demo data={demos.groupControls} />
-
-### Covers
-
-`withCover` treats the book as a physical bound volume. The **first and
-last pages turn rigid** — the whole sheet rotates flat around the spine
-under the play-zone perspective, like a hard cover, while the inner pages
-keep their soft curl (a page can opt in or out with its own `hard` prop).
-And the **closed book is compact**: at either end the single visible page
-is centered on the play-zone, sliding into the two-page spread as the
-cover opens — the slide is a CSS transition, disabled under
-prefers-reduced-motion. Drag the cover slowly to feel the difference: it
-stays flat all the way over.
-
-<Demo data={demos.withCover} />
-
-### Large books
-
-The page stack is built to scale: a page costs its resting DOM and nothing
-more. With `variant="rounded"` the whole book shares **one WebGL context**
-(created lazily on the first turn), and only the touchable spread keeps its
-face snapshots warm — a buried page captures on demand the moment its turn
-starts, and the in-between steps of a riffle skip the WebGL pipeline
-entirely. So the 100-page book below costs the same GPU resources as a
-single sheet — each page's hue advances by the golden angle, so
-neighbouring pages contrast strongly while the whole book still spans the
-color wheel. Drag the slider for a long riffle:
-
-<Demo data={demos.largeBook} />
-
-### Keyboard and screen readers
-
-The book is keyboard-operable out of the box: focus it (it is in the tab
-order) and use <Kbd>→</Kbd> / <Kbd>←</Kbd> to turn the current page forward
-or back, <Kbd>Home</Kbd> / <Kbd>End</Kbd> to jump to the covers — every
-keyboard turn plays the same animated curl as the external controls, and
-collapses to an instant settle under `prefers-reduced-motion: reduce`. Keys
-are handled only while the book itself has focus, so interactive content
-inside a face keeps its own keyboard behavior.
-
-For assistive technology the root exposes `role="group"` with
-`aria-roledescription="book"` (give it your own name with `aria-label`), and
-a polite live region announces the visible pages after every turn — "Page 1
-of 6" when a single page is visible, "Pages 2–3 of 6" on an open spread. Use
-`pageAnnouncement` to localize or customize the message:
-
-```tsx
-<Book pageAnnouncement={({ from, to, total }) => `Pagine ${from}–${to} di ${total}`}>
-  …
-</Book>
-```
-
 ## Faces
 
 A page has two faces, declared as compound children: `Book.Page.Front` (the
@@ -219,6 +113,96 @@ pages rest in the right half and the curl sweeps left toward the spine, so a
 
 <Demo data={demos.dimensions} />
 
+## Multi-page books
+
+Stack several pages and the Book behaves like a real book. Drag the right
+half to turn the current page forward and the left half to turn the previous
+one back. While a page curls, the page beneath shows through — the next one
+going forward, the previous one going back. Visual and gesture props set on
+the Book (variant, shadows, timings…) are inherited by every page via
+optional context, and any page can override them locally.
+
+The page state follows the usual Mantine controlled/uncontrolled pattern:
+`page` + `onPageChange` for controlled, `defaultPage` for uncontrolled. The
+index counts faces: page `i` has its front at `2i` and its back at `2i + 1`,
+so `0` shows the closed book and `1` shows the first page turned. Both faces
+of a spread are equivalent as a setter; `onPageChange` reports the first
+visible face in reading order.
+
+<Demo data={demos.group} />
+
+### Data-driven pages
+
+Instead of children, pass a `pages` array of `{ front, back, props? }`
+objects — handy when the book is built from data (a gallery, a CMS, a PDF
+manifest). The optional `props` entry carries per-page overrides and wins
+over the Book's inherited props:
+
+<Demo data={demos.pages} />
+
+### Standalone page
+
+A `Book.Page` also works on its own, outside any `Book` — it sizes itself
+with its own `width` / `height` and turns like a single sheet (standalone,
+the whole play-zone is the grab surface; `grabZone="sheet"` restricts the
+grab to the resting page itself). The resting side is also controllable:
+pass `flipped` together with `onFlip` and an external change runs the same
+animated turn as a drag. Inside a `Book`, the book's `width` / `height`
+apply to every page instead:
+
+<Demo data={demos.standalonePage} />
+
+## External navigation
+
+Because `page` is controlled, the book can be driven entirely from outside —
+arrows, a pagination, keyboard shortcuts. A programmatic page change runs the
+same settle animation as a completed drag: `turnOrigin` picks the simulated
+grab point — `bottom` or `top` curl from that corner with a diagonal crease,
+`middle` folds the page straight over — and `flippingTime` sets the speed
+(tune both below). Dragging the pages keeps working alongside the controls.
+
+Turns are **queued, one page in flight at a time**: rapid clicks or key
+presses never overlap two animations — they accumulate and the book riffles
+through them in order, compressing the per-page duration on long jumps so
+the whole run fits the `riffleDuration` budget (one second by default —
+slow it down below to watch every page go by). The in-between pages of a
+riffle turn with the flat fold whatever the variant — at riffle speed the
+curl is indistinguishable, and the flat path keeps long runs smooth — while
+the final landing page turns with the book's variant. Try hammering the
+next arrow.
+
+<Demo data={demos.groupControls} />
+
+## Covers
+
+`withCover` treats the book as a physical bound volume. The **first and
+last pages turn rigid** — the whole sheet rotates flat around the spine
+under the play-zone perspective, like a hard cover, while the inner pages
+keep their soft curl (a page can opt in or out with its own `hard` prop).
+Rigid pages are pure DOM — no WebGL even in a `rounded` book, so covers are
+always crisp and cost nothing on the GPU. And the **closed book is
+compact**: at either end the single visible page is centered on the
+play-zone, sliding into the two-page spread as the cover opens — the slide
+is a CSS transition, disabled under prefers-reduced-motion. Drag the cover
+slowly to feel the difference: it stays flat all the way over.
+
+<Demo data={demos.withCover} />
+
+## Large books
+
+The page stack is built to scale: a page costs its resting DOM and nothing
+more. With `variant="rounded"` the whole book shares **one WebGL context**
+(created lazily on the first turn), and only the touchable spread keeps its
+face snapshots warm — a buried page captures on demand the moment its turn
+starts, and the in-between steps of a riffle skip the WebGL pipeline
+entirely. The per-page `warmSnapshots` prop exposes that same switch for a
+standalone page. So the 100-page book below costs the same GPU resources as
+a single sheet — each page's hue advances by the golden angle, so
+neighbouring pages contrast strongly while the whole book still spans the
+color wheel. Drag the slider for a long riffle:
+
+<Demo data={demos.largeBook} />
+
 ## Shadows and lighting
 
 `shadowOpacity` (0–1) controls how strongly the lifting page is shaded as it
@@ -252,7 +236,8 @@ under that page only, for standalone peel effects.
 When you release a drag the page settles with an animation over `flippingTime`
 ms. `flipThreshold` (0–100, percent of a full turn) is the cutoff: drag past it
 and the page completes the turn; below it, it settles back to rest. `disabled`
-removes the drag interaction entirely.
+removes the drag interaction entirely — on the Book for every page, or on a
+single `Book.Page` to pin just that one.
 
 <Demo data={demos.release} />
 
@@ -272,12 +257,82 @@ from the book is then blocked).
 
 <Demo data={demos.gestures} />
 
+## Keyboard shortcuts
+
+The book is keyboard-operable out of the box: focus it (it is in the tab
+order) and turn the pages from the keyboard — every keyboard turn plays the
+same animated curl as the external controls, and collapses to an instant
+settle under `prefers-reduced-motion: reduce`. Keys are handled only while
+the book itself has focus, so interactive content inside a face keeps its
+own keyboard behavior.
+
+<Table withTableBorder withColumnBorders my="md">
+  <Table.Thead>
+    <Table.Tr>
+      <Table.Th>Key</Table.Th>
+      <Table.Th>Action</Table.Th>
+    </Table.Tr>
+  </Table.Thead>
+  <Table.Tbody>
+    <Table.Tr>
+      <Table.Td>
+        <Kbd>→</Kbd>
+      </Table.Td>
+      <Table.Td>Turn the current page forward</Table.Td>
+    </Table.Tr>
+    <Table.Tr>
+      <Table.Td>
+        <Kbd>←</Kbd>
+      </Table.Td>
+      <Table.Td>Turn the previous page back</Table.Td>
+    </Table.Tr>
+    <Table.Tr>
+      <Table.Td>
+        <Kbd>Home</Kbd>
+      </Table.Td>
+      <Table.Td>Jump to the front cover (closed book)</Table.Td>
+    </Table.Tr>
+    <Table.Tr>
+      <Table.Td>
+        <Kbd>End</Kbd>
+      </Table.Td>
+      <Table.Td>Jump past the last page (back cover)</Table.Td>
+    </Table.Tr>
+  </Table.Tbody>
+</Table>
+
+For assistive technology the root exposes `role="group"` with
+`aria-roledescription="book"` (give it your own name with `aria-label`), and
+a polite live region announces the visible pages after every turn — "Page 1
+of 6" when a single page is visible, "Pages 2–3 of 6" on an open spread. Use
+`pageAnnouncement` to localize or customize the message:
+
+```tsx
+<Book pageAnnouncement={({ from, to, total }) => `Pagine ${from}–${to} di ${total}`}>
+  …
+</Book>
+```
+
 ## Events
 
-`onFold` fires continuously during a drag and the release settle with
-`{ progress, phase }` (`phase` is `'move'` or `'settle'`), and `onFlip` fires
-once when a settle finishes, with the resting `{ flipped }` state — both are
-per page, on `Book.Page`. The Book-level `onPageChange` fires when a
-completed turn changes the page. Drag the page and watch the readout:
+`onFold` fires throughout an interaction with `{ progress, phase }`: `phase`
+is `'grab'` the instant the pointer takes the page (before any movement),
+`'move'` while dragging, and `'settle'` during the release animation.
+`onFlip` fires once when a settle finishes, with the resting `{ flipped }`
+state — both are per page, on `Book.Page`. The Book-level `onPageChange`
+fires when a completed turn changes the page. Drag the page and watch the
+readout:
 
 <Demo data={demos.events} />
+
+## Styles API
+
+`Book` supports the full Mantine [Styles API](https://mantine.dev/styles/styles-api/).
+Use `classNames`, `styles`, `vars` and `unstyled` to customize the book
+(`root`, the per-page `page` wrapper) and every layer of a page — the
+resting sheet, the lifting flap, the rigid cover sheet, the shadow and
+reveal layers, the face content wrapper. Use the interactive playground
+below to inspect every selector and CSS variable; the full reference for
+both levels lives in the Styles API tab above.
+
+<Demo data={demos.stylesApi} />
