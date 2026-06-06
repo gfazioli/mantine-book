@@ -1,90 +1,94 @@
 import { Book } from '@gfazioli/mantine-book';
-import { Slider, Switch } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
-import { useState } from 'react';
-import {
-  BACK_COLOR,
-  Control,
-  ControlBar,
-  type CurlVariant,
-  DemoStage,
-  Face,
-  FRONT_COLOR,
-  VariantControl,
-  VISIBLE_OVERFLOW,
-} from './_book-demo-kit';
+import { BACK_COLOR, Face, FRONT_COLOR, VISIBLE_OVERFLOW, withFaceFile } from './_book-demo-kit';
 
 const code = `
 import { Book } from '@gfazioli/mantine-book';
+import { Face } from './Face';
 
 function Demo() {
   // On release: drag past flipThreshold (% of a full turn) and the page
   // settles open over flippingTime ms; below it, it settles back to rest.
   return (
-    <Book flippingTime={600} flipThreshold={50} width={260} height={360}>
+    <Book{{props}} width={260} height={360}>
       <Book.Page>
-        <Book.Page.Front>Front A</Book.Page.Front>
-        <Book.Page.Back>Back B</Book.Page.Back>
+        <Book.Page.Front>
+          <Face label="Front A" color="${FRONT_COLOR}" />
+        </Book.Page.Front>
+        <Book.Page.Back>
+          <Face label="Back B" color="${BACK_COLOR}" />
+        </Book.Page.Back>
       </Book.Page>
     </Book>
   );
 }
 `;
 
-function Demo() {
-  const [variant, setVariant] = useState<CurlVariant>('flat');
-  const [flippingTime, setFlippingTime] = useState(600);
-  const [flipThreshold, setFlipThreshold] = useState(50);
-  const [disabled, setDisabled] = useState(false);
-
+function Demo({
+  variant,
+  flippingTime,
+  flipThreshold,
+  disabled,
+}: {
+  variant?: 'flat' | 'rounded';
+  flippingTime?: number;
+  flipThreshold?: number;
+  disabled?: boolean;
+}) {
   return (
-    <>
-      <DemoStage>
-        <Book
-          key={variant}
-          variant={variant}
-          flippingTime={flippingTime}
-          flipThreshold={flipThreshold}
-          disabled={disabled}
-          width={260}
-          height={360}
-        >
-          <Book.Page>
-            <Book.Page.Front>
-              <Face label="Front A" color={FRONT_COLOR} />
-            </Book.Page.Front>
-            <Book.Page.Back>
-              <Face label="Back B" color={BACK_COLOR} />
-            </Book.Page.Back>
-          </Book.Page>
-        </Book>
-      </DemoStage>
-
-      <ControlBar>
-        <VariantControl value={variant} onChange={setVariant} />
-        <Control label={`Flipping time — ${flippingTime}ms`} w={220}>
-          <Slider value={flippingTime} onChange={setFlippingTime} min={150} max={2000} step={50} />
-        </Control>
-        <Control label={`Flip threshold — ${flipThreshold}%`} w={220}>
-          <Slider value={flipThreshold} onChange={setFlipThreshold} min={10} max={90} step={5} />
-        </Control>
-        <Control label="Disabled">
-          <Switch
-            checked={disabled}
-            onChange={(event) => setDisabled(event.currentTarget.checked)}
-            label={disabled ? 'no drag' : 'draggable'}
-          />
-        </Control>
-      </ControlBar>
-    </>
+    <Book
+      key={variant}
+      variant={variant}
+      flippingTime={flippingTime}
+      flipThreshold={flipThreshold}
+      disabled={disabled}
+      width={260}
+      height={360}
+    >
+      <Book.Page>
+        <Book.Page.Front>
+          <Face label="Front A" color={FRONT_COLOR} />
+        </Book.Page.Front>
+        <Book.Page.Back>
+          <Face label="Back B" color={BACK_COLOR} />
+        </Book.Page.Back>
+      </Book.Page>
+    </Book>
   );
 }
 
 export const release: MantineDemo = {
-  type: 'code',
+  type: 'configurator',
   component: Demo,
-  code,
-  defaultExpanded: false,
+  code: withFaceFile(code),
   centered: true,
   overflow: VISIBLE_OVERFLOW,
+  controls: [
+    {
+      type: 'segmented',
+      prop: 'variant',
+      data: ['flat', 'rounded'],
+      initialValue: 'flat',
+      libraryValue: 'flat',
+    },
+    {
+      type: 'number',
+      prop: 'flippingTime',
+      initialValue: 600,
+      libraryValue: 600,
+      min: 150,
+      max: 2000,
+      step: 50,
+    },
+    {
+      type: 'number',
+      prop: 'flipThreshold',
+      initialValue: 50,
+      libraryValue: 50,
+      min: 10,
+      max: 90,
+      step: 5,
+    },
+    { type: 'boolean', prop: 'disabled', initialValue: false, libraryValue: false },
+  ],
 };

@@ -11,6 +11,7 @@ export { largeBook } from './Book.demo.largeBook';
 export { pageBackground } from './Book.demo.pageBackground';
 export { pages } from './Book.demo.pages';
 export { standalonePage } from './Book.demo.standalonePage';
+export { stylesApi } from './Book.demo.stylesApi';
 export { release } from './Book.demo.release';
 export { shadow } from './Book.demo.shadow';
 export { usage } from './Book.demo.usage';

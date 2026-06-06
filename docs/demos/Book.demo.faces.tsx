@@ -1,75 +1,69 @@
 import { Book } from '@gfazioli/mantine-book';
-import { Switch } from '@mantine/core';
 import { MantineDemo } from '@mantinex/demo';
-import { useState } from 'react';
 import {
   BACK_COLOR,
-  Control,
-  ControlBar,
-  type CurlVariant,
-  DemoStage,
   Face,
   FRONT_COLOR,
-  VariantControl,
+  propsSnippet,
   VISIBLE_OVERFLOW,
+  withFaceFile,
 } from './_book-demo-kit';
 
-const code = `
+const code = (props: Record<string, any>) => `
 import { Book } from '@gfazioli/mantine-book';
+import { Face } from './Face';
 
 function Demo() {
   return (
-    <Book width={260} height={360}>
+    <Book${propsSnippet([['variant', props.variant, 'flat']])} width={260} height={360}>
       <Book.Page>
-        <Book.Page.Front>Front A</Book.Page.Front>
-        {/* Book.Page.Back is optional — omit it and the back renders blank */}
-        <Book.Page.Back>Back B</Book.Page.Back>
+        <Book.Page.Front>
+          <Face label="Front A" color="${FRONT_COLOR}" />
+        </Book.Page.Front>
+${
+  props.withBack
+    ? `        <Book.Page.Back>
+          <Face label="Back B" color="${BACK_COLOR}" />
+        </Book.Page.Back>`
+    : '        {/* Book.Page.Back omitted — the back renders blank */}'
+}
       </Book.Page>
     </Book>
   );
 }
 `;
 
-function Demo() {
-  const [variant, setVariant] = useState<CurlVariant>('flat');
-  const [withBack, setWithBack] = useState(true);
-
+function Demo({ variant, withBack }: { variant?: 'flat' | 'rounded'; withBack?: boolean }) {
   return (
-    <>
-      <DemoStage>
-        <Book key={`${variant}-${withBack}`} variant={variant} width={260} height={360}>
-          <Book.Page>
-            <Book.Page.Front>
-              <Face label="Front A" color={FRONT_COLOR} />
-            </Book.Page.Front>
-            {withBack && (
-              <Book.Page.Back>
-                <Face label="Back B" color={BACK_COLOR} />
-              </Book.Page.Back>
-            )}
-          </Book.Page>
-        </Book>
-      </DemoStage>
-
-      <ControlBar>
-        <VariantControl value={variant} onChange={setVariant} />
-        <Control label="Include Book.Page.Back">
-          <Switch
-            checked={withBack}
-            onChange={(event) => setWithBack(event.currentTarget.checked)}
-            label={withBack ? 'Back B' : 'blank back'}
-          />
-        </Control>
-      </ControlBar>
-    </>
+    <Book key={`${variant}-${withBack}`} variant={variant} width={260} height={360}>
+      <Book.Page>
+        <Book.Page.Front>
+          <Face label="Front A" color={FRONT_COLOR} />
+        </Book.Page.Front>
+        {withBack && (
+          <Book.Page.Back>
+            <Face label="Back B" color={BACK_COLOR} />
+          </Book.Page.Back>
+        )}
+      </Book.Page>
+    </Book>
   );
 }
 
 export const faces: MantineDemo = {
-  type: 'code',
+  type: 'configurator',
   component: Demo,
-  code,
-  defaultExpanded: false,
+  code: withFaceFile(code),
   centered: true,
   overflow: VISIBLE_OVERFLOW,
+  controls: [
+    {
+      type: 'segmented',
+      prop: 'variant',
+      data: ['flat', 'rounded'],
+      initialValue: 'flat',
+      libraryValue: 'flat',
+    },
+    { type: 'boolean', prop: 'withBack', initialValue: true, libraryValue: null },
+  ],
 };
