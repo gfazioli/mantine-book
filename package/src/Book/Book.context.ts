@@ -43,6 +43,28 @@ export interface BookInheritableProps {
 /** The full value a `<Book>` provides: the inheritable props plus the variant. */
 export type BookContextValue = BookInheritableProps & { variant?: 'flat' | 'rounded' };
 
+/**
+ * Every key of {@link BookContextValue} — the ONE shared list both `Book`
+ * (building the context value) and `BookPage` (merging it) iterate, so the
+ * two sides can never drift. `satisfies` rejects unknown keys at compile
+ * time; the companion drift-guard test asserts the list is also EXHAUSTIVE
+ * (a key added to the type but not listed here fails the type-level check).
+ */
+export const INHERITABLE_PROPS = [
+  'variant',
+  'align',
+  'shadowOpacity',
+  'shadowColor',
+  'pageBackground',
+  'curlRadius',
+  'flippingTime',
+  'flipThreshold',
+  'swipeDistance',
+  'swipeTimeThreshold',
+  'mobileScrollSupport',
+  'turnOrigin',
+] as const satisfies readonly (keyof BookContextValue)[];
+
 /** Optional context: `null` outside a `<Book>` (a standalone page works fine). */
 export const BookContext = createContext<BookContextValue | null>(null);
 

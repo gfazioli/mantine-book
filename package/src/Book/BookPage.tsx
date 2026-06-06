@@ -4,7 +4,7 @@ import { filterProps } from '@mantine/core';
 import React from 'react';
 import { Curl, type CurlProps, makeFaceMarker } from '../Curl/Curl';
 import type { CurlFace } from '../CurlFace/CurlFace';
-import { type BookContextValue, useBookContext } from './Book.context';
+import { type BookContextValue, INHERITABLE_PROPS, useBookContext } from './Book.context';
 
 /* ------------------------------------------------------------------ */
 /*  Public API                                                         */
@@ -20,21 +20,6 @@ export interface BookPageProps extends CurlProps {
   /** Curl renderer for this page; overrides the Book's `variant`. */
   variant?: 'flat' | 'rounded';
 }
-
-const INHERITABLE: (keyof BookContextValue)[] = [
-  'variant',
-  'align',
-  'shadowOpacity',
-  'shadowColor',
-  'pageBackground',
-  'curlRadius',
-  'flippingTime',
-  'flipThreshold',
-  'swipeDistance',
-  'swipeTimeThreshold',
-  'mobileScrollSupport',
-  'turnOrigin',
-];
 
 type BookPageComponent = ((
   props: BookPageProps & { ref?: React.Ref<HTMLDivElement> }
@@ -56,7 +41,7 @@ export const BookPage: BookPageComponent = (_props) => {
   // drops undefined entries so an unset local prop never masks the context.
   const inherited: Partial<BookContextValue> = {};
   if (ctx) {
-    for (const key of INHERITABLE) {
+    for (const key of INHERITABLE_PROPS) {
       if (ctx[key] !== undefined) {
         (inherited as Record<string, unknown>)[key] = ctx[key];
       }
