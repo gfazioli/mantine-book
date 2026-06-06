@@ -15,8 +15,18 @@ import {
   VisuallyHidden,
 } from '@mantine/core';
 import { useUncontrolled } from '@mantine/hooks';
-import React, { useEffect, useState } from 'react';
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { CurlProps } from '../Curl/Curl';
+// Type-only pool import inside: never pulls the WebGL renderer in this chunk.
+import { CurlWebglPoolContext, type CurlWebglPoolHolder } from '../Curl/webgl/poolContext';
 import { BookContext, type BookContextValue, type BookInheritableProps } from './Book.context';
 import { BookPage, type BookPageProps } from './BookPage';
 import { faceToTurnedPages, turnedPagesToFace } from './page-index';
@@ -85,6 +95,17 @@ export interface BookBaseProps extends BookInheritableProps {
    * count. @default "Page X of N" / "Pages X–Y of N"
    */
   pageAnnouncement?: (info: { from: number; to: number; total: number }) => string;
+
+  /**
+   * Total time budget in ms for a multi-page riffle (a jump of several
+   * pages): each in-between turn gets `riffleDuration / steps` (never less
+   * than 80ms, never more than `flippingTime`). Single-step turns always use
+   * `flippingTime`. The in-between pages of a riffle always turn with the
+   * flat fold — at riffle speed the curl is indistinguishable and the flat
+   * path keeps long riffles smooth; the final landing page turns with the
+   * book's variant. @default 1000
+   */
+  riffleDuration?: number;
 }
 
 export interface BookProps
@@ -111,6 +132,7 @@ const defaultProps: Partial<BookProps> = {
   width: 300,
   height: 600,
   disabled: false,
+  riffleDuration: 1000,
 };
 
 const varsResolver = createVarsResolver<BookFactory>(
@@ -124,10 +146,125 @@ const varsResolver = createVarsResolver<BookFactory>(
   })
 );
 
-/** Total time budget (ms) for a multi-page riffle catch-up. */
-const RIFFLE_BUDGET = 1000;
 /** Floor (ms) for a single compressed riffle step. */
 const RIFFLE_MIN_STEP = 80;
+
+/**
+ * Returns the previous reference when the new style is shallow-equal, so a
+ * freshly-merged (but unchanged) styles-API object doesn't defeat the
+ * per-page memo below.
+ */
+function useShallowStableStyle(
+  style: React.CSSProperties | undefined
+): React.CSSProperties | undefined {
+  const ref = useRef(style);
+  const prev = ref.current;
+  const same =
+    prev === style ||
+    (!!prev &&
+      !!style &&
+      Object.keys(prev).length === Object.keys(style).length &&
+      Object.keys(style).every(
+        (key) => (prev as Record<string, unknown>)[key] === (style as Record<string, unknown>)[key]
+      ));
+  if (!same) {
+    ref.current = style;
+  }
+  return same ? prev : style;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Memoized page wrapper                                              */
+/* ------------------------------------------------------------------ */
+
+interface BookSheetProps {
+  child: React.ReactElement<CurlProps>;
+  index: number;
+  width: number | undefined;
+  height: number | undefined;
+  flipped: boolean;
+  disabled: boolean;
+  warm: boolean;
+  raised: boolean;
+  total: number;
+  /** Compressed duration while this page is an in-between riffle step. */
+  stepTime: number | undefined;
+  /** Turn this page's riffle step with the flat fold (no WebGL pipeline). */
+  stepFlat: boolean;
+  className: string | undefined;
+  style: React.CSSProperties | undefined;
+  onFoldStep: (index: number) => void;
+  onFlipStep: (index: number, flipped: boolean) => void;
+}
+
+/**
+ * One stacked page, memoized on primitives + referentially-stable callbacks:
+ * a Book commit during a turn changes the props of only a handful of pages
+ * (the in-flight step, the warm spread, their neighbours), so every other
+ * Curl subtree bails out of re-rendering. On a 100-page book this is the
+ * difference between a smooth riffle and re-cloning the whole stack on every
+ * queue transition.
+ */
+const BookSheet = memo(function BookSheet(props: BookSheetProps) {
+  const {
+    child,
+    index,
+    width,
+    height,
+    flipped,
+    disabled,
+    warm,
+    raised,
+    total,
+    stepTime,
+    stepFlat,
+    className,
+    style,
+    onFoldStep,
+    onFlipStep,
+  } = props;
+
+  const childOnFold = child.props.onFold;
+  const childOnFlip = child.props.onFlip;
+
+  const overrides: Partial<CurlProps> = {
+    width,
+    height,
+    flipped,
+    grabZone: 'sheet',
+    disabled,
+    warmSnapshots: warm,
+    onFold: (info) => {
+      onFoldStep(index);
+      childOnFold?.(info);
+    },
+    onFlip: (info) => {
+      onFlipStep(index, info.flipped);
+      childOnFlip?.(info);
+    },
+  };
+  if (stepTime !== undefined) {
+    overrides.flippingTime = stepTime;
+  }
+  if (stepFlat) {
+    overrides.variant = 'flat';
+  }
+
+  // Resting stacks: on the right the NEXT pages sit underneath in order; on
+  // the left the most recently turned page stays on top. The in-flight page
+  // (queue step or live drag) is raised above everything while it sweeps —
+  // from the very first commit of its step (zIndex from queueStep, NOT from
+  // foldingIndex, which onFold only sets on the first rAF tick: waiting for
+  // it painted one frame with the page beneath on top — the start-of-turn
+  // flash).
+  const zIndex = raised ? total + 2 : flipped ? index + 1 : total - index;
+
+  return (
+    <div className={className} style={{ ...style, zIndex }}>
+      {React.cloneElement(child, overrides)}
+    </div>
+  );
+});
 
 const INHERITABLE: (keyof BookContextValue)[] = [
   'variant',
@@ -170,6 +307,7 @@ export const Book = factory<BookFactory>((_props) => {
     pages,
     children,
     pageAnnouncement,
+    riffleDuration,
     classNames,
     style,
     styles,
@@ -233,21 +371,24 @@ export const Book = factory<BookFactory>((_props) => {
 
   /* --- Pages (children win over the data-driven prop) ------------- */
 
-  const childPages = React.Children.toArray(children).filter(
-    React.isValidElement
-  ) as React.ReactElement<CurlProps>[];
-
-  const dataPages =
-    childPages.length === 0 && pages
-      ? pages.map((data, index) => (
-          <BookPage key={index} {...data.props}>
-            <BookPage.Front>{data.front}</BookPage.Front>
-            <BookPage.Back>{data.back}</BookPage.Back>
-          </BookPage>
-        ))
-      : null;
-
-  const sheets = (dataPages ?? childPages) as React.ReactElement<CurlProps>[];
+  // Memoized so the page ELEMENTS are referentially stable across Book
+  // commits — Children.toArray (and the data-page map) mint new elements on
+  // every call, which would defeat the per-page BookSheet memo and every
+  // useMemo inside Curl.
+  const sheets = useMemo(() => {
+    const childPages = React.Children.toArray(children).filter(
+      React.isValidElement
+    ) as React.ReactElement<CurlProps>[];
+    if (childPages.length > 0 || !pages) {
+      return childPages;
+    }
+    return pages.map((data, index) => (
+      <BookPage key={index} {...data.props}>
+        <BookPage.Front>{data.front}</BookPage.Front>
+        <BookPage.Back>{data.back}</BookPage.Back>
+      </BookPage>
+    )) as React.ReactElement<CurlProps>[];
+  }, [children, pages]);
   const total = sheets.length;
 
   /* --- Page state (face indices ↔ turned pages) ------------------- */
@@ -262,6 +403,20 @@ export const Book = factory<BookFactory>((_props) => {
 
   // While a page folds it must sweep ABOVE both stacks; track which one.
   const [foldingIndex, setFoldingIndex] = useState<number | null>(null);
+
+  /* --- Shared WebGL pool (rounded variant) --------------------------- */
+
+  // One WebGL context for the whole book: the holder is provided empty and
+  // the first rounded fold fills it (lazy chunk); the turn queue guarantees a
+  // single page draws at a time. Reclaim the GPU slot on unmount.
+  const poolHolderRef = useRef<CurlWebglPoolHolder>({ pool: null });
+  useEffect(() => {
+    const poolHolder = poolHolderRef.current;
+    return () => {
+      poolHolder.pool?.dispose();
+      poolHolder.pool = null;
+    };
+  }, []);
 
   /* --- Turn queue (one page in flight at a time) --------------------- */
 
@@ -289,7 +444,11 @@ export const Book = factory<BookFactory>((_props) => {
         : Math.max(displayedTurned - 1, 0);
 
   // Advance the queue: start the next step when nothing is in flight.
-  useEffect(() => {
+  // Layout effect: the next step is scheduled BEFORE the browser paints the
+  // settle commit, so a riffle doesn't pause a dead frame at every step
+  // boundary. Self-limiting (gated on queueStep/foldingIndex being null), so
+  // it can never loop synchronously.
+  useLayoutEffect(() => {
     // If the page count shrank mid-flight and the stepping page no longer
     // exists, its onFlip can never fire — clear the stale step so the
     // reconciliation cannot deadlock.
@@ -310,14 +469,14 @@ export const Book = factory<BookFactory>((_props) => {
     const forward = turned > displayedTurned;
     const index = forward ? displayedTurned : displayedTurned - 1;
     // Accelerated riffle on multi-page jumps: compress the per-page duration
-    // so the whole run lands within ~RIFFLE_BUDGET ms.
+    // so the whole run lands within ~riffleDuration ms.
     setStepTime(
       steps > 1
-        ? Math.max(RIFFLE_MIN_STEP, Math.min(flippingTime ?? 600, RIFFLE_BUDGET / steps))
+        ? Math.max(RIFFLE_MIN_STEP, Math.min(flippingTime ?? 600, (riffleDuration ?? 1000) / steps))
         : undefined
     );
     setQueueStep({ index, forward });
-  }, [turned, displayedTurned, foldingIndex, queueStep, total, flippingTime]);
+  }, [turned, displayedTurned, foldingIndex, queueStep, total, flippingTime, riffleDuration]);
 
   /* --- Keyboard navigation ----------------------------------------- */
 
@@ -377,88 +536,116 @@ export const Book = factory<BookFactory>((_props) => {
     ...rest
   } = others;
 
+  // Stable per-page callbacks (read live state through refs) so BookSheet's
+  // memo holds: the inline closures the map used to mint on every commit
+  // forced all N pages to re-render on each queue transition.
+  const queueStepRef = useRef(queueStep);
+  queueStepRef.current = queueStep;
+  const setFaceRef = useRef(setFace);
+  setFaceRef.current = setFace;
+
+  const handleFoldStep = useCallback((index: number) => {
+    setFoldingIndex(index);
+  }, []);
+
+  const handleFlipStep = useCallback((index: number, nowFlipped: boolean) => {
+    setFoldingIndex(null);
+    const newTurned = nowFlipped ? index + 1 : index;
+    if (queueStepRef.current?.index === index) {
+      // Queue step settled: record progress and let the advance effect start
+      // the next step. The face already points at the target, so no setFace.
+      setDisplayedTurned(newTurned);
+      setQueueStep(null);
+    } else {
+      // User drag settled (turn or snap-back): this IS the new target —
+      // report it.
+      setDisplayedTurned(newTurned);
+      setFaceRef.current(turnedPagesToFace(newTurned));
+    }
+  }, []);
+
+  // While a multi-page riffle is still far from landing, warm snapshot
+  // capture stays suspended (its steps all turn flat — see the map below).
+  // It resumes when ≤2 turns remain, so the LANDING page captures its
+  // textures during the second-to-last step and the final rounded turn
+  // starts ready.
+  const riffleWarmHold =
+    queueStep !== null && stepTime !== undefined && Math.abs(turned - displayedTurned) > 2;
+
+  const pageStyles = getStyles('page');
+  const stablePageStyle = useShallowStableStyle(pageStyles.style);
+
   return (
     <BookContext.Provider value={ctxValue}>
-      <Box
-        ref={ref}
-        role={role}
-        aria-roledescription={ariaRoledescription}
-        aria-label={ariaLabelledby ? ariaLabel : (ariaLabel ?? 'Book')}
-        aria-labelledby={ariaLabelledby}
-        tabIndex={tabIndex ?? (disabled ? -1 : 0)}
-        onKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) => {
-          userOnKeyDown?.(event);
-          if (!event.defaultPrevented) {
-            handleKeyDown(event);
-          }
-        }}
-        {...getStyles('root')}
-        {...rest}
-        mod={[{ disabled }, mod]}
-      >
-        <VisuallyHidden aria-live="polite" aria-atomic="true">
-          {announcement}
-        </VisuallyHidden>
-        {sheets.map((child, index) => {
-          const flipped = index < effectiveTurned;
-          // While a fold is in flight (a user drag or a queue step), only that
-          // page stays interactive — a second simultaneous fold would fight it
-          // over the z-boost and break the one-page-in-flight invariant.
-          const inFlight = queueStep?.index ?? foldingIndex;
-          // Only the top of each half reacts to the pointer: `effectiveTurned`
-          // (right, turns forward) and `effectiveTurned - 1` (left, turns back).
-          const interactive =
-            !disabled &&
-            (index === effectiveTurned || index === effectiveTurned - 1) &&
-            (inFlight === null || inFlight === index);
-          // Resting stacks: on the right the NEXT pages sit underneath in
-          // order; on the left the most recently turned page stays on top. A
-          // folding page is raised above everything while it sweeps across.
-          const zIndex = foldingIndex === index ? total + 2 : flipped ? index + 1 : total - index;
-
-          const childOnFold = child.props.onFold;
-          const childOnFlip = child.props.onFlip;
-
-          const overrides: Partial<CurlProps> = {
-            width,
-            height,
-            flipped,
-            grabZone: 'sheet',
-            disabled: child.props.disabled || !interactive,
-            onFold: (info) => {
-              setFoldingIndex(index);
-              childOnFold?.(info);
-            },
-            onFlip: (info) => {
-              setFoldingIndex(null);
-              const newTurned = info.flipped ? index + 1 : index;
-              if (queueStep?.index === index) {
-                // Queue step settled: record progress and let the advance
-                // effect start the next step. The face already points at the
-                // target, so no setFace here.
-                setDisplayedTurned(newTurned);
-                setQueueStep(null);
-              } else {
-                // User drag settled (turn or snap-back): this IS the new
-                // target — report it.
-                setDisplayedTurned(newTurned);
-                setFace(turnedPagesToFace(newTurned));
-              }
-              childOnFlip?.(info);
-            },
-          };
-          // Compressed duration while this page is a multi-page riffle step.
-          if (queueStep?.index === index && stepTime !== undefined) {
-            overrides.flippingTime = stepTime;
-          }
-
-          return (
-            <div key={child.key ?? index} {...getStyles('page', { style: { zIndex } })}>
-              {React.cloneElement(child, overrides)}
-            </div>
-          );
-        })}
-      </Box>
+      <CurlWebglPoolContext.Provider value={poolHolderRef.current}>
+        <Box
+          ref={ref}
+          role={role}
+          aria-roledescription={ariaRoledescription}
+          aria-label={ariaLabelledby ? ariaLabel : (ariaLabel ?? 'Book')}
+          aria-labelledby={ariaLabelledby}
+          tabIndex={tabIndex ?? (disabled ? -1 : 0)}
+          onKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) => {
+            userOnKeyDown?.(event);
+            if (!event.defaultPrevented) {
+              handleKeyDown(event);
+            }
+          }}
+          {...getStyles('root')}
+          {...rest}
+          mod={[{ disabled }, mod]}
+        >
+          <VisuallyHidden aria-live="polite" aria-atomic="true">
+            {announcement}
+          </VisuallyHidden>
+          {sheets.map((child, index) => {
+            const flipped = index < effectiveTurned;
+            // While a fold is in flight (a user drag or a queue step), only that
+            // page stays interactive — a second simultaneous fold would fight it
+            // over the z-boost and break the one-page-in-flight invariant.
+            const inFlight = queueStep?.index ?? foldingIndex;
+            // Only the top of each half reacts to the pointer: `effectiveTurned`
+            // (right, turns forward) and `effectiveTurned - 1` (left, turns back).
+            const interactive =
+              !disabled &&
+              (index === effectiveTurned || index === effectiveTurned - 1) &&
+              (inFlight === null || inFlight === index);
+            // The in-between steps of a multi-page riffle (compressed
+            // stepTime) always turn with the FLAT fold: at riffle speed the
+            // curl is indistinguishable and the flat path needs no snapshots,
+            // so long riffles stay smooth. Only the final landing page
+            // (natural duration, stepTime undefined) turns with the book's
+            // variant — and the warm window above made sure its textures are
+            // ready.
+            const isStep = queueStep?.index === index;
+            return (
+              <BookSheet
+                key={child.key ?? index}
+                child={child}
+                index={index}
+                width={width}
+                height={height}
+                flipped={flipped}
+                disabled={child.props.disabled || !interactive}
+                // Only the two top-of-stack pages keep their WebGL snapshots
+                // warm (a buried page never folds without surfacing first),
+                // so a big book pays for one warm spread, not one per page.
+                warm={
+                  !riffleWarmHold && (index === effectiveTurned || index === effectiveTurned - 1)
+                }
+                raised={inFlight === index}
+                total={total}
+                stepTime={isStep ? stepTime : undefined}
+                stepFlat={isStep && stepTime !== undefined}
+                className={pageStyles.className}
+                style={stablePageStyle}
+                onFoldStep={handleFoldStep}
+                onFlipStep={handleFlipStep}
+              />
+            );
+          })}
+        </Box>
+      </CurlWebglPoolContext.Provider>
     </BookContext.Provider>
   );
 });

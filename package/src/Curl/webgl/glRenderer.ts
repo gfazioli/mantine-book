@@ -63,7 +63,13 @@ void main() {
   float diff = max(dot(Nl, L), 0.0);
   vec3 R = reflect(-L, Nl);
   float spec = pow(max(dot(R, V), 0.0), 80.0);  // tight glossy ridge at the roll apex
-  float light = 0.58 + 0.42 * diff;
+  // Normalized to the FLAT-page response (a flat page facing the viewer has
+  // diff = L.z): a page lying flat reads EXACTLY its base color — the same
+  // value as the DOM face it hands off to at the start and end of a turn.
+  // Without this the landed page sat at ~94% brightness and the handoff
+  // popped ~6% brighter in one frame (read as "a shadow vanishing").
+  float flatLight = 0.58 + 0.42 * max(L.z, 0.0);
+  float light = (0.58 + 0.42 * diff) / flatLight;
   // Edge-on-ness: 0 when the surface lies flat (facing the viewer OR fully
   // turned over onto the far side), 1 at the vertical roll ridge. Both the back
   // darkening and the self-shadow scale by it, so they peak at the ridge and
@@ -220,13 +226,40 @@ export class CurlGlRenderer {
 
   /** Size the drawing buffer to the play-zone (2W × (H + 2·pad)) at the given DPR. */
   resize(sheetWidth: number, sheetHeight: number, dpr: number): void {
+    const padY = Math.round(sheetHeight * CurlGlRenderer.PAD_RATIO);
+    const canvas = this.gl.canvas as HTMLCanvasElement;
+    const bufW = Math.round(2 * sheetWidth * dpr);
+    const bufH = Math.round((sheetHeight + 2 * padY) * dpr);
+    // Assigning canvas.width/height reallocs AND clears the drawing buffer
+    // even when the value is unchanged — skip the no-op so the per-turn
+    // lease re-acquire on the shared renderer costs nothing. (Re-acquirers
+    // call clear() instead to drop the previous page's stale frame.)
+    if (
+      this.W === sheetWidth &&
+      this.H === sheetHeight &&
+      canvas.width === bufW &&
+      canvas.height === bufH
+    ) {
+      return;
+    }
     this.W = sheetWidth;
     this.H = sheetHeight;
-    this.padY = Math.round(sheetHeight * CurlGlRenderer.PAD_RATIO);
-    const canvas = this.gl.canvas as HTMLCanvasElement;
-    canvas.width = Math.round(2 * sheetWidth * dpr);
-    canvas.height = Math.round((sheetHeight + 2 * this.padY) * dpr);
-    this.gl.viewport(0, 0, canvas.width, canvas.height);
+    this.padY = padY;
+    canvas.width = bufW;
+    canvas.height = bufH;
+    this.gl.viewport(0, 0, bufW, bufH);
+  }
+
+  /**
+   * Clear the drawing buffer to transparent. Called on every lease acquire:
+   * the pooled canvas still holds the LAST page's final frame, and without
+   * the clear it would show through for the gap before this fold's first
+   * draw (the resize above no longer implicitly clears when sizes match).
+   */
+  clear(): void {
+    const gl = this.gl;
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   }
 
   private upload(tex: WebGLTexture, source: TexImageSource): void {
@@ -312,7 +345,10 @@ export class CurlGlRenderer {
     const gl = this.gl;
     const { W, H, padY } = this;
     const PI = Math.PI;
-    const r = Math.max(radius, 1);
+    // Sub-pixel floor only (guards the d/r division): as r→0 the wrap
+    // converges to the exact flat reflection (f = πr − 2d → −d, lift 2r → 0),
+    // which is what lets the settle hand off to the DOM face with no snap.
+    const r = Math.max(radius, 0.05);
     const tc = this.texcoords;
     const sp = this.scaledPos;
     const count = tc.length / 2;
@@ -397,5 +433,16 @@ export class CurlGlRenderer {
     gl.deleteTexture(this.frontTex);
     gl.deleteTexture(this.backTex);
     gl.deleteProgram(this.program);
+  }
+
+  /**
+   * Full teardown: drop the GL objects AND return the context slot to the
+   * browser. Safe here (unlike a React effect cleanup) because the pool owns
+   * BOTH the renderer and its canvas — a recreated pool gets a fresh canvas,
+   * so StrictMode double-mounts never reuse a lost context.
+   */
+  loseContext(): void {
+    this.dispose();
+    this.gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
 }

@@ -39,8 +39,18 @@ function Demo() {
   return (
     <>
       {/* turnOrigin: where a programmatic turn grabs the page —
-          'bottom' / 'top' corner curl, 'middle' straight fold */}
-      <Book width={260} height={360} turnOrigin="bottom" page={page} onPageChange={setPage} pages={pages} />
+          'bottom' / 'top' corner curl, 'middle' straight fold.
+          riffleDuration: total time budget for a multi-page jump
+          (each in-between turn gets riffleDuration / steps). */}
+      <Book
+        width={260}
+        height={360}
+        turnOrigin="bottom"
+        riffleDuration={1000}
+        page={page}
+        onPageChange={setPage}
+        pages={pages}
+      />
 
       <Group justify="center">
         <ActionIcon
@@ -83,6 +93,7 @@ function Demo() {
   const [page, setPage] = useState(0);
   const [variant, setVariant] = useState<CurlVariant>('flat');
   const [flippingTime, setFlippingTime] = useState(600);
+  const [riffleDuration, setRiffleDuration] = useState(1000);
   const [turnOrigin, setTurnOrigin] = useState<TurnOrigin>('bottom');
   const lastFace = PAGES.length * 2 - 1;
 
@@ -98,6 +109,7 @@ function Demo() {
         key={variant}
         variant={variant}
         flippingTime={flippingTime}
+        riffleDuration={riffleDuration}
         turnOrigin={turnOrigin}
         width={260}
         height={360}
@@ -164,6 +176,16 @@ function Demo() {
             step={50}
             value={flippingTime}
             onChange={setFlippingTime}
+            label={(value) => `${value} ms`}
+          />
+        </Control>
+        <Control label={`Riffle duration — ${riffleDuration} ms`} w={220}>
+          <Slider
+            min={400}
+            max={4000}
+            step={100}
+            value={riffleDuration}
+            onChange={setRiffleDuration}
             label={(value) => `${value} ms`}
           />
         </Control>

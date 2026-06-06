@@ -77,9 +77,26 @@ grab point — `bottom` or `top` curl from that corner with a diagonal crease,
 Turns are **queued, one page in flight at a time**: rapid clicks or key
 presses never overlap two animations — they accumulate and the book riffles
 through them in order, compressing the per-page duration on long jumps so
-the whole run stays around a second. Try hammering the next arrow below.
+the whole run fits the `riffleDuration` budget (one second by default —
+slow it down below to watch every page go by). The in-between pages of a
+riffle turn with the flat fold whatever the variant — at riffle speed the
+curl is indistinguishable, and the flat path keeps long runs smooth — while
+the final landing page turns with the book's variant. Try hammering the
+next arrow.
 
 <Demo data={demos.groupControls} />
+
+### Large books
+
+The page stack is built to scale: a page costs its resting DOM and nothing
+more. With `variant="rounded"` the whole book shares **one WebGL context**
+(created lazily on the first turn), and only the touchable spread keeps its
+face snapshots warm — a buried page captures on demand the moment its turn
+starts, and the in-between steps of a riffle skip the WebGL pipeline
+entirely. So the 100-page book below costs the same GPU resources as a
+single sheet. Drag the slider for a long riffle across the rainbow:
+
+<Demo data={demos.largeBook} />
 
 ### Keyboard and screen readers
 

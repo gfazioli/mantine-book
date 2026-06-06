@@ -7,6 +7,7 @@ export { faces } from './Book.demo.faces';
 export { gestures } from './Book.demo.gestures';
 export { group } from './Book.demo.group';
 export { groupControls } from './Book.demo.groupControls';
+export { largeBook } from './Book.demo.largeBook';
 export { pageBackground } from './Book.demo.pageBackground';
 export { pages } from './Book.demo.pages';
 export { standalonePage } from './Book.demo.standalonePage';
