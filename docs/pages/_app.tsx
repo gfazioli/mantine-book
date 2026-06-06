@@ -2,6 +2,7 @@ import '@mantine/core/styles.css';
 // Core
 import '@mantine/code-highlight/styles.css';
 import '@mantinex/demo/styles.css';
+import '../styles/demo-overrides.css';
 import '@mantinex/mantine-header/styles.css';
 import '@mantinex/mantine-logo/styles.css';
 // Component

@@ -1,63 +1,56 @@
 import { Book } from '@gfazioli/mantine-book';
 import { MantineDemo } from '@mantinex/demo';
-import { useState } from 'react';
-import {
-  BACK_COLOR,
-  ControlBar,
-  type CurlVariant,
-  DemoStage,
-  Face,
-  FRONT_COLOR,
-  VariantControl,
-  VISIBLE_OVERFLOW,
-} from './_book-demo-kit';
+import { BACK_COLOR, Face, FRONT_COLOR, VISIBLE_OVERFLOW, withFaceFile } from './_book-demo-kit';
 
 const code = `
 import { Book } from '@gfazioli/mantine-book';
+import { Face } from './Face';
 
 function Demo() {
   return (
-    <Book variant="rounded" width={260} height={360}>
+    <Book{{props}} width={260} height={360}>
       <Book.Page>
-        <Book.Page.Front>Front A</Book.Page.Front>
-        <Book.Page.Back>Back B</Book.Page.Back>
+        <Book.Page.Front>
+          <Face label="Front A" color="${FRONT_COLOR}" />
+        </Book.Page.Front>
+        <Book.Page.Back>
+          <Face label="Back B" color="${BACK_COLOR}" />
+        </Book.Page.Back>
       </Book.Page>
     </Book>
   );
 }
 `;
 
-function Demo() {
-  const [variant, setVariant] = useState<CurlVariant>('rounded');
-
+function Demo({ variant }: { variant?: 'flat' | 'rounded' }) {
   return (
-    <>
-      <DemoStage>
-        {/* key forces a clean remount so the WebGL layer mounts/unmounts on switch. */}
-        <Book key={variant} variant={variant} width={260} height={360}>
-          <Book.Page>
-            <Book.Page.Front>
-              <Face label="Front A" color={FRONT_COLOR} />
-            </Book.Page.Front>
-            <Book.Page.Back>
-              <Face label="Back B" color={BACK_COLOR} />
-            </Book.Page.Back>
-          </Book.Page>
-        </Book>
-      </DemoStage>
-
-      <ControlBar>
-        <VariantControl value={variant} onChange={setVariant} />
-      </ControlBar>
-    </>
+    // key forces a clean remount so the WebGL layer mounts/unmounts on switch.
+    <Book key={variant} variant={variant} width={260} height={360}>
+      <Book.Page>
+        <Book.Page.Front>
+          <Face label="Front A" color={FRONT_COLOR} />
+        </Book.Page.Front>
+        <Book.Page.Back>
+          <Face label="Back B" color={BACK_COLOR} />
+        </Book.Page.Back>
+      </Book.Page>
+    </Book>
   );
 }
 
 export const variant: MantineDemo = {
-  type: 'code',
+  type: 'configurator',
   component: Demo,
-  code,
-  defaultExpanded: false,
+  code: withFaceFile(code),
   centered: true,
   overflow: VISIBLE_OVERFLOW,
+  controls: [
+    {
+      type: 'segmented',
+      prop: 'variant',
+      data: ['flat', 'rounded'],
+      initialValue: 'rounded',
+      libraryValue: 'flat',
+    },
+  ],
 };

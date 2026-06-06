@@ -1,0 +1,26 @@
+/*
+ * Demo overrides — force the @mantinex/demo CONFIGURATOR layout to STACKED
+ * (controls BELOW the stage) at any width.
+ *
+ * Why: the Book play-zone is twice the page width, and the configurator's
+ * default right-hand control rail squeezes it. The stacked layout already
+ * EXISTS upstream — these are the same rules @mantinex/demo applies inside
+ * its own `@container (max-width: 620px)` query — applied unconditionally.
+ * Controls keep their horizontal SimpleGrid flow (withGrid is always on).
+ *
+ * NOTE: the m_* hashes are stable per @mantinex/demo version (they ship in
+ * the package CSS). Re-check them after a major bump of @mantinex/demo.
+ */
+
+/* DemoColumns root: stage above, controls below. */
+.m_df4e856a {
+  flex-direction: column;
+}
+
+/* Controls panel: full-width strip under the stage instead of a side rail. */
+.m_de00ac9 {
+  flex: unset;
+  border-inline-start: none;
+  border-right: none !important;
+  border-top: 1px solid var(--demo-border);
+}

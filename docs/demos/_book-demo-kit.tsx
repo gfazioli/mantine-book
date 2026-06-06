@@ -128,3 +128,66 @@ export function VariantControl({
  * so `'visible'` works at runtime; the cast keeps the typed demo object happy.
  */
 export const VISIBLE_OVERFLOW = 'visible' as unknown as 'auto';
+
+/* ------------------------------------------------------------------ */
+/*  Configurator helpers                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The `Face` helper as a standalone SOURCE FILE (`Face.tsx` tab in the demo
+ * code): the Demo.tsx snippet imports it, so copying both tabs reproduces
+ * exactly what the demo renders.
+ */
+export const FACE_FILE = `export function Face({ label, color }: { label: string; color: string }) {
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 36,
+        fontWeight: 700,
+        color: '#fff',
+        background: color,
+      }}
+    >
+      {label}
+    </div>
+  );
+}`;
+
+/**
+ * Wrap a Demo.tsx code payload with the shared Face.tsx tab: the demo code
+ * box renders one tab per file, and the snippet imports `./Face`.
+ */
+export function withFaceFile<C extends string | ((props: Record<string, any>) => string)>(code: C) {
+  return [
+    { fileName: 'Demo.tsx', language: 'tsx' as const, code },
+    { fileName: 'Face.tsx', language: 'tsx' as const, code: FACE_FILE },
+  ];
+}
+
+/**
+ * Format configurator state into a JSX props string for a generated code
+ * snippet (used by demos whose \`code\` is a function). Values equal to the
+ * library default are omitted, numbers render as \`{n}\`, booleans as bare
+ * flags — the same conventions as the official \`{{props}}\` injection.
+ */
+export function propsSnippet(
+  entries: Array<[name: string, value: unknown, libraryValue?: unknown]>
+): string {
+  return entries
+    .filter(([, value, libraryValue]) => value !== undefined && value !== libraryValue)
+    .map(([name, value]) => {
+      if (value === true) {
+        return ` ${name}`;
+      }
+      if (typeof value === 'number' || typeof value === 'boolean') {
+        return ` ${name}={${value}}`;
+      }
+      return ` ${name}="${value}"`;
+    })
+    .join('');
+}
