@@ -35,7 +35,7 @@ ${
 }
 `;
 
-function Demo({ variant, fit }: { variant?: 'flat' | 'rounded'; fit?: string }) {
+function Demo({ variant, fit }: { variant?: 'flat' | 'rounded'; fit?: 'landscape' | 'full page' }) {
   const imgStyle =
     fit === 'full page'
       ? ({ width: '100%', height: '100%', objectFit: 'cover' } as const)

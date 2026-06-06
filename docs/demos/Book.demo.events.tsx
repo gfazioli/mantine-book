@@ -19,7 +19,7 @@ import { Face } from './Face';
 
 function Demo() {
   const [progress, setProgress] = useState(0);
-  const [phase, setPhase] = useState<'grab' | 'move' | 'settle' | '-'>('-');
+  const [phase, setPhase] = useState<'grab' | 'move' | 'settle' | '\u2014'>('\u2014');
   const [flipped, setFlipped] = useState(false);
 
   return (
