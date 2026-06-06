@@ -111,6 +111,16 @@ export interface BookBaseProps extends BookInheritableProps {
    * book's variant. @default 1000
    */
   riffleDuration?: number;
+
+  /**
+   * Treat the book as a physical bound volume: the FIRST and LAST pages turn
+   * RIGID around the spine (hard covers — flat 3D rotation, no curl; a page
+   * can override with its own `hard`), and the closed book (either end) is
+   * COMPACT — visually centered on the play-zone instead of sitting in one
+   * half, sliding into the two-page spread as the cover opens (the slide is
+   * a CSS transition, disabled under prefers-reduced-motion). @default false
+   */
+  withCover?: boolean;
 }
 
 export interface BookProps
@@ -196,6 +206,8 @@ interface BookSheetProps {
   stepTime: number | undefined;
   /** Turn this page's riffle step with the flat fold (no WebGL pipeline). */
   stepFlat: boolean;
+  /** Rigid page (hard cover): rotates flat around the spine, no curl. */
+  hard: boolean;
   className: string | undefined;
   style: React.CSSProperties | undefined;
   onFoldStep: (index: number) => void;
@@ -223,6 +235,7 @@ const BookSheet = memo(function BookSheet(props: BookSheetProps) {
     total,
     stepTime,
     stepFlat,
+    hard,
     className,
     style,
     onFoldStep,
@@ -239,6 +252,7 @@ const BookSheet = memo(function BookSheet(props: BookSheetProps) {
     grabZone: 'sheet',
     disabled,
     warmSnapshots: warm,
+    hard,
     onFold: (info) => {
       onFoldStep(index);
       childOnFold?.(info);
@@ -298,6 +312,7 @@ export const Book = factory<BookFactory>((_props) => {
     children,
     pageAnnouncement,
     riffleDuration,
+    withCover,
     classNames,
     style,
     styles,
@@ -548,7 +563,13 @@ export const Book = factory<BookFactory>((_props) => {
       setQueueStep(null);
     } else {
       // User drag settled (turn or snap-back): this IS the new target —
-      // report it.
+      // report it. If a queue step was pending (a drag can steal the fold
+      // mid-riffle: handleStart kills the step's settle animation, so its
+      // onFlip never fires), DROP it — otherwise the orphaned step blocks
+      // the advance effect forever and the book deadlocks. The advance
+      // re-syncs from the fresh displayed/target state on the next pass.
+      setQueueStep(null);
+      setStepTime(undefined);
       setDisplayedTurned(newTurned);
       setFaceRef.current(turnedPagesToFace(newTurned));
     }
@@ -564,6 +585,20 @@ export const Book = factory<BookFactory>((_props) => {
 
   const pageStyles = getStyles('page');
   const stablePageStyle = useShallowStableStyle(pageStyles.style);
+
+  // withCover: a CLOSED book (either end) is compact — the single visible
+  // page is centered on the play-zone instead of sitting in one half. The
+  // root slides by half a page as the cover opens/closes (CSS transition on
+  // transform, see Book.module.css; follows `turned`, the TARGET, so a
+  // programmatic turn slides in sync with the cover flip).
+  const coverShift =
+    withCover === true && total > 0
+      ? turned === 0
+        ? -(width ?? 0) / 2
+        : turned === total
+          ? (width ?? 0) / 2
+          : 0
+      : 0;
 
   return (
     <BookContext.Provider value={ctxValue}>
@@ -581,7 +616,9 @@ export const Book = factory<BookFactory>((_props) => {
               handleKeyDown(event);
             }
           }}
-          {...getStyles('root')}
+          {...getStyles('root', {
+            style: withCover === true ? { transform: `translateX(${coverShift}px)` } : undefined,
+          })}
           {...rest}
           mod={[{ disabled }, mod]}
         >
@@ -627,6 +664,11 @@ export const Book = factory<BookFactory>((_props) => {
                 total={total}
                 stepTime={isStep ? stepTime : undefined}
                 stepFlat={isStep && stepTime !== undefined}
+                // withCover: first and last pages are rigid covers; an
+                // explicit per-page `hard` always wins.
+                hard={
+                  child.props.hard ?? (withCover === true && (index === 0 || index === total - 1))
+                }
                 className={pageStyles.className}
                 style={stablePageStyle}
                 onFoldStep={handleFoldStep}

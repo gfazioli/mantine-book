@@ -7,6 +7,7 @@ export const BookPageStylesApi: StylesApiData<CurlFactory> = {
     restSheet:
       'The face lying flat at rest (Front in the right half; Back in the left half once turned)',
     curlSheet: 'The lifting flap showing the opposite face (clipped + rotated per frame)',
+    hardSheet: 'The rigid page (hard cover) rotating flat around the spine while it turns',
     shadowLayer:
       'SVG overlay with the curl shading gradient (the cast halo is a filter on curlSheet)',
     revealLayer:

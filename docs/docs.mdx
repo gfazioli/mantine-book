@@ -86,6 +86,20 @@ next arrow.
 
 <Demo data={demos.groupControls} />
 
+### Covers
+
+`withCover` treats the book as a physical bound volume. The **first and
+last pages turn rigid** — the whole sheet rotates flat around the spine
+under the play-zone perspective, like a hard cover, while the inner pages
+keep their soft curl (a page can opt in or out with its own `hard` prop).
+And the **closed book is compact**: at either end the single visible page
+is centered on the play-zone, sliding into the two-page spread as the
+cover opens — the slide is a CSS transition, disabled under
+prefers-reduced-motion. Drag the cover slowly to feel the difference: it
+stays flat all the way over.
+
+<Demo data={demos.withCover} />
+
 ### Large books
 
 The page stack is built to scale: a page costs its resting DOM and nothing

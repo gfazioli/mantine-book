@@ -1,5 +1,5 @@
 import { render } from '@mantine-tests/core';
-import { fireEvent, waitFor } from '@testing-library/react';
+import { act, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { Book } from './Book';
 import { type BookContextValue, INHERITABLE_PROPS } from './Book.context';
@@ -447,6 +447,95 @@ describe('Book stack hardening', () => {
     expect(flippedStates(container)).toEqual([false, false, false]);
   });
 
+  it('locks the other pages from the very grab (pointerdown), before any move', () => {
+    // The grab is announced immediately (phase: 'grab'): the interaction
+    // lock engages at pointerdown, NOT at the first move — so a second
+    // finger (or a queue step scheduled in the down→move window) can never
+    // fight the fold over the stack.
+    const { container } = render(
+      <Book defaultPage={2} width={300} height={600}>
+        {fastPages(3)}
+      </Book>
+    );
+    // At rest on spread 1: both top pages (0 left, 1 right) are interactive.
+    expect(disabledStates(container)).toEqual([false, false, true]);
+    const page1Rest = container.querySelectorAll<HTMLElement>('[class*="restSheet"]')[1];
+    const mk = (type: string, x: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.assign(event, {
+        pointerId: 9,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: x,
+        clientY: 300,
+      });
+      return event;
+    };
+    act(() => {
+      page1Rest.dispatchEvent(mk('pointerdown', 580)); // grab, NO move yet
+    });
+    // Locked immediately: only the grabbed page stays interactive.
+    expect(disabledStates(container)).toEqual([true, false, true]);
+    act(() => {
+      window.dispatchEvent(mk('pointerup', 580)); // click → settle back
+    });
+    expect(disabledStates(container)).toEqual([false, false, true]);
+  });
+
+  it('recovers when a user drag steals the fold from a pending queue step (no deadlock)', async () => {
+    // Page 0 rests turned (left top), page 1 is the right top. Start a drag
+    // on page 0 and BEFORE its first move (handleStart alone never reaches
+    // the Book — foldingIndex is still null) queue a jump: the advance
+    // schedules a step on page 1 while the pointer is down. The release then
+    // lands in the DRAG branch with a FOREIGN queue step pending — without
+    // the cleanup that step stayed orphaned and the book deadlocked (queue
+    // blocked + every page locked).
+    const { container } = render(
+      <Book defaultPage={2} width={300} height={600}>
+        {fastPages(3)}
+      </Book>
+    );
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    const page0Rest = container.querySelectorAll<HTMLElement>('[class*="restSheet"]')[0];
+    const mk = (type: string, x: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.assign(event, {
+        pointerId: 5,
+        pointerType: 'mouse',
+        button: 0,
+        clientX: x,
+        clientY: 300,
+      });
+      return event;
+    };
+    // Page 0 is flipped: its free edge is the LEFT edge of the play-zone.
+    act(() => {
+      page0Rest.dispatchEvent(mk('pointerdown', 4));
+    });
+    fireEvent.keyDown(root, { key: 'End' }); // schedules a queue step on page 1
+    act(() => {
+      window.dispatchEvent(mk('pointermove', 120));
+      window.dispatchEvent(mk('pointerup', 120));
+    });
+    // Whatever the release decided (turn or snap-back), the book must come
+    // back QUIESCENT: queue drained, interaction lock released.
+    await waitFor(() => {
+      const wrappers = wrappersOf(container);
+      const enabled = wrappers.filter(
+        (wrap) => (wrap.firstElementChild as HTMLElement).getAttribute('data-disabled') === null
+      );
+      expect(enabled.length).toBeGreaterThan(0);
+    });
+    // And it must still RESPOND: a keyboard turn changes the stack (with the
+    // orphaned step it stayed frozen forever).
+    const before = JSON.stringify(flippedStates(container));
+    const turnedCount = flippedStates(container).filter(Boolean).length;
+    fireEvent.keyDown(root, { key: turnedCount === 3 ? 'ArrowLeft' : 'ArrowRight' });
+    await waitFor(() => {
+      expect(JSON.stringify(flippedStates(container))).not.toBe(before);
+    });
+  });
+
   it('the shared inheritable list covers every BookContextValue key (drift guard)', () => {
     type Missing = Exclude<keyof BookContextValue, (typeof INHERITABLE_PROPS)[number]>;
     // Compile-time exhaustiveness: a key added to BookContextValue but not to
@@ -479,5 +568,74 @@ describe('page-index roundtrip', () => {
         expect(faceToTurnedPages(2 * spread - 1, total)).toBe(faceToTurnedPages(2 * spread, total));
       }
     }
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  withCover — hard covers + the compact closed book                   */
+/* ------------------------------------------------------------------ */
+
+describe('Book withCover', () => {
+  const fastPages = (n: number) =>
+    Array.from({ length: n }, (_, i) => (
+      <Book.Page key={i} flippingTime={0}>
+        <Book.Page.Front>F{i}</Book.Page.Front>
+        <Book.Page.Back>B{i}</Book.Page.Back>
+      </Book.Page>
+    ));
+
+  const hardStates = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll<HTMLElement>('[class*="page"]')).map(
+      (wrap) => (wrap.firstElementChild as HTMLElement).getAttribute('data-hard') !== null
+    );
+
+  it('marks the first and last pages as rigid covers', () => {
+    const { container } = render(<Book withCover>{fastPages(4)}</Book>);
+    expect(hardStates(container)).toEqual([true, false, false, true]);
+  });
+
+  it('does not mark any page without withCover', () => {
+    const { container } = render(<Book>{fastPages(3)}</Book>);
+    expect(hardStates(container)).toEqual([false, false, false]);
+  });
+
+  it('lets an explicit per-page hard override win over withCover', () => {
+    const pages = [
+      <Book.Page key="0" hard={false}>
+        <Book.Page.Front>F0</Book.Page.Front>
+      </Book.Page>,
+      <Book.Page key="1" hard>
+        <Book.Page.Front>F1</Book.Page.Front>
+      </Book.Page>,
+      <Book.Page key="2">
+        <Book.Page.Front>F2</Book.Page.Front>
+      </Book.Page>,
+    ];
+    const { container } = render(<Book withCover>{pages}</Book>);
+    // Page 0 opted OUT of the cover; page 1 opted IN despite being inner.
+    expect(hardStates(container)).toEqual([false, true, true]);
+  });
+
+  it('centers the closed book and slides into the spread (compact mode)', async () => {
+    const { container } = render(
+      <Book withCover width={300} height={400}>
+        {fastPages(2)}
+      </Book>
+    );
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    // Closed at the front: shifted half a page left (cover centered).
+    expect(root.style.transform).toBe('translateX(-150px)');
+    // Open spread: no shift.
+    fireEvent.keyDown(root, { key: 'ArrowRight' });
+    await waitFor(() => expect(root.style.transform).toBe('translateX(0px)'));
+    // Closed at the back: shifted half a page right.
+    fireEvent.keyDown(root, { key: 'End' });
+    await waitFor(() => expect(root.style.transform).toBe('translateX(150px)'));
+  });
+
+  it('applies no shift without withCover', () => {
+    const { container } = render(<Book width={300}>{fastPages(2)}</Book>);
+    const root = container.querySelector<HTMLElement>('[class*="root"]')!;
+    expect(root.style.transform).toBe('');
   });
 });

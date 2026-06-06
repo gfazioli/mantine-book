@@ -15,6 +15,16 @@
      first/last page uncovers while turning. Transparent unless the
      `revealBackground` prop sets the variable. */
   background: var(--curl-reveal-background, transparent);
+  /* withCover compact-book slide (the closed book is centered, the open
+     spread is not): the inline translateX changes by ±W/2 around the first
+     and last turns. Inert otherwise — the transform never changes. */
+  transition: transform 450ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    transition: none;
+  }
 }
 
 /* The book root is keyboard-focusable (arrows turn the pages): show the

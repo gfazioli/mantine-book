@@ -327,3 +327,92 @@ describe('Curl reveal layer', () => {
     expect(revealOf(container)).toBeNull();
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  Hard (rigid) page — the cover renderer                              */
+/* ------------------------------------------------------------------ */
+
+describe('Curl hard (rigid page)', () => {
+  const W = 300;
+
+  const firePointer = (
+    target: EventTarget,
+    type: 'pointerdown' | 'pointermove' | 'pointerup',
+    props: Record<string, unknown>
+  ) => {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.assign(event, { pointerId: 1, pointerType: 'mouse', button: 0, ...props });
+    act(() => {
+      target.dispatchEvent(event);
+    });
+  };
+
+  const renderHard = () => {
+    const onFlip = jest.fn();
+    const utils = render(
+      <Curl width={W} height={600} hard flippingTime={0} onFlip={onFlip}>
+        <Curl.Front>CoverFront</Curl.Front>
+        <Curl.Back>CoverBack</Curl.Back>
+      </Curl>
+    );
+    const root = utils.container.querySelector('[class*="root"]') as HTMLElement;
+    return { ...utils, root, onFlip };
+  };
+
+  it('marks the root and renders NO hard sheet at rest', () => {
+    const { container, root } = renderHard();
+    expect(root.getAttribute('data-hard')).not.toBeNull();
+    expect(container.querySelector('[class*="hardSheet"]')).toBeNull();
+  });
+
+  it('replaces the fold with a rigid rotation while dragging (no flap, no clip)', () => {
+    const { container, root } = renderHard();
+    firePointer(root, 'pointerdown', { clientX: W + W, clientY: 300 });
+    firePointer(window, 'pointermove', { clientX: W + 150, clientY: 300 });
+    const hardSheet = container.querySelector('[class*="hardSheet"]') as HTMLElement;
+    expect(hardSheet).toBeTruthy();
+    expect(hardSheet.style.transform).toMatch(/rotateY\(/);
+    // The soft-fold layers must not render for a rigid page.
+    expect(container.querySelector('[class*="curlSheet"]')).toBeNull();
+    // The resting sheet is hidden — the rotating sheet IS the page.
+    const restSheet = container.querySelector('[class*="restSheet"]') as HTMLElement;
+    expect(restSheet.style.display).toBe('none');
+  });
+
+  it('tracks the drag: edge at the spine reads 90°, landed reads 180°', () => {
+    const { container, root } = renderHard();
+    firePointer(root, 'pointerdown', { clientX: W + W, clientY: 300 });
+    // Target at the spine (local x = 0) → θ = acos(0) = 90° (negative: the
+    // free edge lifts TOWARD the viewer as it sweeps over the spine).
+    firePointer(window, 'pointermove', { clientX: W, clientY: 300 });
+    const hardSheet = () => container.querySelector('[class*="hardSheet"]') as HTMLElement;
+    expect(hardSheet().style.transform).toContain('rotateY(-90');
+    // Target at the far edge (local x = −W) → θ = acos(−1) = 180°.
+    firePointer(window, 'pointermove', { clientX: 0, clientY: 300 });
+    expect(hardSheet().style.transform).toContain('rotateY(-180');
+  });
+
+  it('completes and snaps back through the same controller as a soft page', async () => {
+    const { container, root, onFlip } = renderHard();
+    // Complete: sweep past the vertical.
+    firePointer(root, 'pointerdown', { clientX: W + W, clientY: 300 });
+    firePointer(window, 'pointermove', { clientX: 40, clientY: 300 });
+    firePointer(window, 'pointerup', { clientX: 40, clientY: 300 });
+    await waitFor(() => expect(onFlip).toHaveBeenCalledWith({ flipped: true }));
+    // At rest on the left: hard sheet unmounted again, restSheet visible.
+    expect(container.querySelector('[class*="hardSheet"]')).toBeNull();
+  });
+
+  it('renders both faces inside the rotating sheet (back pre-rotated)', () => {
+    const { container, root } = renderHard();
+    firePointer(root, 'pointerdown', { clientX: W + W, clientY: 300 });
+    firePointer(window, 'pointermove', { clientX: W + 100, clientY: 300 });
+    const hardSheet = container.querySelector('[class*="hardSheet"]') as HTMLElement;
+    expect(hardSheet).toBeTruthy();
+    // Both faces live INSIDE the rotating sheet (visibility is backface
+    // culling, not mounting) — the back wrapper carries the pre-rotation.
+    expect(hardSheet.textContent).toContain('CoverFront');
+    expect(hardSheet.textContent).toContain('CoverBack');
+    expect(hardSheet.querySelector('[class*="hardFaceBack"]')).toBeTruthy();
+  });
+});

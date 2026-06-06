@@ -13,6 +13,7 @@
  *   .root        play-zone (2W × H), perspective + pointer surface
  *   .restSheet   Front face, flat, sitting in the right half
  *   .curlSheet   the lifting flap that reveals the Back face
+ *   .hardSheet   the RIGID page (hard cover) rotating flat around the spine
  *   .shadowLayer SVG overlay with the curl shading gradient (drop halo is a
  *                filter on .curlSheet)
  *   .face        content wrapper inside any face (sizing / align / clipping)
@@ -61,6 +62,38 @@
   transform-origin: 0 0;
   /* transform + clip-path applied inline per frame */
   z-index: 5;
+}
+
+.hardSheet {
+  /* The RIGID page (hard cover): the whole sheet rotates flat around the
+     spine — its own LEFT edge, the centre seam of the play-zone — under the
+     root's perspective. Always anchored on the right half: rotateY(180°)
+     lands it on the left half, so one box serves both resting sides. The
+     per-frame rotateY is applied inline. */
+  position: absolute;
+  top: 0;
+  left: var(--curl-page-width);
+  width: var(--curl-page-width);
+  height: var(--curl-page-height);
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.hardFace {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--curl-page-background);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.hardFaceBack {
+  /* Pre-rotated so the back face reads correctly once the sheet lands. */
+  transform: rotateY(180deg);
 }
 
 .shadowLayer {

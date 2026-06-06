@@ -34,7 +34,7 @@ function Demo() {
 function Demo() {
   const [variant, setVariant] = useState<CurlVariant>('flat');
   const [progress, setProgress] = useState(0);
-  const [phase, setPhase] = useState<'move' | 'settle' | '—'>('—');
+  const [phase, setPhase] = useState<'grab' | 'move' | 'settle' | '—'>('—');
   const [flipped, setFlipped] = useState(false);
 
   return (

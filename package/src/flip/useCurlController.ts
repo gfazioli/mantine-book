@@ -53,7 +53,7 @@ export interface CurlControllerOptions {
   turnOrigin?: TurnOrigin;
   /** The play-zone root element — used to map pointer → page-local coords. */
   rootRef: RefObject<HTMLDivElement | null>;
-  onFold?: (info: { progress: number; phase: 'move' | 'settle' }) => void;
+  onFold?: (info: { progress: number; phase: 'grab' | 'move' | 'settle' }) => void;
   onFlip?: (info: { flipped: boolean }) => void;
 }
 
@@ -194,6 +194,11 @@ export function useCurlController(options: CurlControllerOptions): CurlControlle
       lastTargetRef.current = null;
       // Start flat; the first move creates the fold (no pop on grab).
       setBoth(null, flippedRef.current);
+      // Announce the grab IMMEDIATELY (before any move): the Book marks the
+      // page as in flight, so its turn queue cannot schedule a step in the
+      // down→first-move window — a step scheduled there could be orphaned by
+      // this drag's release and deadlock the queue.
+      onFoldRef.current?.({ progress: 0, phase: 'grab' });
     },
     [W, H, animator, setBoth]
   );
