@@ -22,6 +22,14 @@ function injectVariant() {
   const docgenPath = path.join(outputPath, 'docgen.json');
   const docgen = JSON.parse(fs.readFileSync(docgenPath, 'utf-8'));
 
+  for (const component of ['Book', 'BookPage']) {
+    if (!docgen[component]?.props) {
+      throw new Error(
+        `docgen.json is missing "${component}.props" — did generateDeclarations change its output shape?`
+      );
+    }
+  }
+
   const variantType = {
     name: '"flat" | "rounded"',
     raw: '"flat" | "rounded" | undefined',
@@ -64,4 +72,10 @@ generateDeclarations({
   componentsPaths: [getComponentPath('Book/Book.tsx'), getComponentPath('Book/BookPage.tsx')],
   tsConfigPath: path.join(process.cwd(), 'tsconfig.json'),
   outputPath,
-}).then(injectVariant);
+})
+  .then(injectVariant)
+  .catch((error) => {
+    // eslint-disable-next-line no-console
+    console.error('docgen failed:', error);
+    process.exit(1);
+  });
