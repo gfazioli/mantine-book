@@ -39,6 +39,12 @@ export const mantineComponentsDataDisplay: MantineComponentLink[] = [
     title: 'Audio',
     href: 'https://gfazioli.github.io/mantine-audio',
     newWindow: true,
+  },
+  {
+    key: 'book',
+    title: 'Book',
+    href: 'https://gfazioli.github.io/mantine-book',
+    newWindow: true,
     new: true,
   },
   {
@@ -59,7 +65,7 @@ export const mantineComponentsDataDisplay: MantineComponentLink[] = [
     href: 'https://gfazioli.github.io/mantine-json-tree',
     newWindow: true,
   },
-  { key: 'book', title: 'BOOK', href: 'https://gfazioli.github.io/mantine-book', newWindow: true },
+  { key: 'led', title: 'LED', href: 'https://gfazioli.github.io/mantine-led', newWindow: true },
   {
     key: 'list-view-table',
     title: 'List View Table',
