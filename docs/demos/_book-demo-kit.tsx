@@ -161,10 +161,15 @@ export const FACE_FILE = `export function Face({ label, color }: { label: string
 /**
  * Wrap a Demo.tsx code payload with the shared Face.tsx tab: the demo code
  * box renders one tab per file, and the snippet imports `./Face`.
+ * Extra files (e.g. a demo-specific `Pager.tsx`) slot between the two.
  */
-export function withFaceFile<C extends string | ((props: Record<string, any>) => string)>(code: C) {
+export function withFaceFile<C extends string | ((props: Record<string, any>) => string)>(
+  code: C,
+  ...extraFiles: Array<{ fileName: string; language: 'tsx'; code: string }>
+) {
   return [
     { fileName: 'Demo.tsx', language: 'tsx' as const, code },
+    ...extraFiles,
     { fileName: 'Face.tsx', language: 'tsx' as const, code: FACE_FILE },
   ];
 }

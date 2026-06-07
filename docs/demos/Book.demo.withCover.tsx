@@ -5,6 +5,47 @@ import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { useState } from 'react';
 import { propsSnippet, VISIBLE_OVERFLOW } from './_book-demo-kit';
 
+const PAGER_FILE = `import { ActionIcon, Group } from '@mantine/core';
+import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+
+/** Prev/next arrows: one spread per click (0 → 1 opens the cover). */
+export function Pager({
+  page,
+  pageCount,
+  onChange,
+}: {
+  page: number;
+  pageCount: number;
+  onChange: (page: number) => void;
+}) {
+  const lastFace = pageCount * 2 - 1;
+
+  return (
+    <Group justify="center" gap="md">
+      <ActionIcon
+        variant="default"
+        radius="xl"
+        size="lg"
+        aria-label="Previous page"
+        disabled={page === 0}
+        onClick={() => onChange(Math.max(0, page - 2))}
+      >
+        <IconChevronLeft size={18} />
+      </ActionIcon>
+      <ActionIcon
+        variant="default"
+        radius="xl"
+        size="lg"
+        aria-label="Next page"
+        disabled={page === lastFace}
+        onClick={() => onChange(page === 0 ? 1 : Math.min(lastFace, page + 2))}
+      >
+        <IconChevronRight size={18} />
+      </ActionIcon>
+    </Group>
+  );
+}`;
+
 const BOOKFACES_FILE = `/** An inner paper page: warm paper tone, dark ink page number. */
 export function Paper({ label, tone = 0 }: { label: string; tone?: 0 | 1 }) {
   return (
@@ -58,9 +99,9 @@ export function Cover({ title, subtitle }: { title: string; subtitle?: string })
 const code = (props: Record<string, any>) => `
 import { useState } from 'react';
 import { Book, type BookPageData } from '@gfazioli/mantine-book';
-import { ActionIcon, Group, Stack } from '@mantine/core';
-import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+import { Stack } from '@mantine/core';
 import { Cover, Paper } from './BookFaces';
+import { Pager } from './Pager';
 
 const pages: BookPageData[] = [
   { front: <Cover title="The Book" subtitle="a Mantine extension" />, back: <Paper label="i" tone={1} /> },
@@ -71,7 +112,6 @@ const pages: BookPageData[] = [
 
 function Demo() {
   const [page, setPage] = useState(0);
-  const lastFace = pages.length * 2 - 1;
 
   return (
     <Stack align="center" gap="md">
@@ -82,35 +122,49 @@ function Demo() {
         ['withCover', props.withCover, false],
         ['variant', props.variant, 'flat'],
       ])} width={240} height={340} page={page} onPageChange={setPage} pages={pages} />
-
-      <Group justify="center" gap="md">
-        <ActionIcon
-          variant="default"
-          radius="xl"
-          size="lg"
-          aria-label="Previous page"
-          disabled={page === 0}
-          onClick={() => setPage((current) => Math.max(0, current - 2))}
-        >
-          <IconChevronLeft size={18} />
-        </ActionIcon>
-        <ActionIcon
-          variant="default"
-          radius="xl"
-          size="lg"
-          aria-label="Next page"
-          disabled={page === lastFace}
-          onClick={() =>
-            setPage((current) => (current === 0 ? 1 : Math.min(lastFace, current + 2)))
-          }
-        >
-          <IconChevronRight size={18} />
-        </ActionIcon>
-      </Group>
+      <Pager page={page} pageCount={pages.length} onChange={setPage} />
     </Stack>
   );
 }
 `;
+
+/** Prev/next arrows: one spread per click (0 → 1 opens the cover). */
+function Pager({
+  page,
+  pageCount,
+  onChange,
+}: {
+  page: number;
+  pageCount: number;
+  onChange: (page: number) => void;
+}) {
+  const lastFace = pageCount * 2 - 1;
+
+  return (
+    <Group justify="center" gap="md">
+      <ActionIcon
+        variant="default"
+        radius="xl"
+        size="lg"
+        aria-label="Previous page"
+        disabled={page === 0}
+        onClick={() => onChange(Math.max(0, page - 2))}
+      >
+        <IconChevronLeft size={18} />
+      </ActionIcon>
+      <ActionIcon
+        variant="default"
+        radius="xl"
+        size="lg"
+        aria-label="Next page"
+        disabled={page === lastFace}
+        onClick={() => onChange(page === 0 ? 1 : Math.min(lastFace, page + 2))}
+      >
+        <IconChevronRight size={18} />
+      </ActionIcon>
+    </Group>
+  );
+}
 
 /** An inner paper page: warm paper tone, dark ink page number. */
 function Paper({ label, tone = 0 }: { label: string; tone?: 0 | 1 }) {
@@ -177,7 +231,6 @@ const PAGES: BookPageData[] = [
 
 function Demo({ withCover, variant }: { withCover?: boolean; variant?: 'flat' | 'rounded' }) {
   const [page, setPage] = useState(0);
-  const lastFace = PAGES.length * 2 - 1;
 
   return (
     <Stack align="center" gap="md">
@@ -191,31 +244,7 @@ function Demo({ withCover, variant }: { withCover?: boolean; variant?: 'flat' | 
         onPageChange={setPage}
         pages={PAGES}
       />
-
-      <Group justify="center" gap="md">
-        <ActionIcon
-          variant="default"
-          radius="xl"
-          size="lg"
-          aria-label="Previous page"
-          disabled={page === 0}
-          onClick={() => setPage((current) => Math.max(0, current - 2))}
-        >
-          <IconChevronLeft size={18} />
-        </ActionIcon>
-        <ActionIcon
-          variant="default"
-          radius="xl"
-          size="lg"
-          aria-label="Next page"
-          disabled={page === lastFace}
-          onClick={() =>
-            setPage((current) => (current === 0 ? 1 : Math.min(lastFace, current + 2)))
-          }
-        >
-          <IconChevronRight size={18} />
-        </ActionIcon>
-      </Group>
+      <Pager page={page} pageCount={PAGES.length} onChange={setPage} />
     </Stack>
   );
 }
@@ -225,6 +254,7 @@ export const withCover: MantineDemo = {
   component: Demo,
   code: [
     { fileName: 'Demo.tsx', language: 'tsx', code },
+    { fileName: 'Pager.tsx', language: 'tsx', code: PAGER_FILE },
     { fileName: 'BookFaces.tsx', language: 'tsx', code: BOOKFACES_FILE },
   ],
   centered: true,

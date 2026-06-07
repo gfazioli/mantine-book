@@ -29,6 +29,25 @@ Two rendering paths, selected by the `variant` prop. The default `flat` variant 
 >
 > **CI** (`.github/workflows`): runs `yarn` (immutable install — fails on lockfile drift) → `npm run build` → `npm run docs:build` → `npm test`. Mirror all four locally before pushing.
 
+### Docs dev-loop (reliable restart)
+
+Turbopack caches the workspace `dist` aggressively — after ANY `package/src` change a browser reload alone serves stale chunks. The full reliable cycle:
+
+```bash
+yarn build                      # rebuild the package dist
+lsof -ti :9281 | xargs kill     # stop any running dev server
+npx rimraf docs/.next           # drop the Turbopack cache (rm -rf is denied by permissions)
+yarn dev                        # restart — ALWAYS via the Bash tool's run_in_background
+                                # (nohup in a subshell dies with the tool's shell, exit 143)
+until curl -s -o /dev/null -w "%{http_code}" http://localhost:9281/ | grep -q 200; do sleep 1; done
+curl -s -o /dev/null http://localhost:9281/   # warm-up: first compile can take 30s+ on a cold cache
+```
+
+Browser-driving gotchas:
+
+- **Next dev FOUC-guard**: `<style data-next-hide-fouc>body{display:none}</style>` can stay orphaned after a server restart with open tabs — the page looks blank while React actually runs (demo images still load). Remove the style tag via JS or retest in a FRESH tab before concluding anything is broken.
+- **Held fold for inspection**: dispatch real `new PointerEvent('pointerdown'|'pointermove', { bubbles: true, pointerId, pointerType: 'mouse', button: 0, clientX, clientY })` on the page's restSheet, then moves on `window`, WITHOUT the `pointerup` — generic `Event` objects don't always reach React's handlers in a real browser. Always release held pointers when done: a forgotten pointerId corrupts later interactions (two ghost drags deadlocked a debugging session).
+
 ## Architecture
 
 ### Workspace Layout
@@ -70,6 +89,18 @@ Rollup → dual ESM/CJS with `'use client'` banner. CSS modules hashed with `has
 
 > Everything on the roadmap SHIPPED — including `withCover` (the first and last pages turn RIGID around the spine via the `hard` per-page prop + the closed book is COMPACT, centered on the play-zone with a CSS-transition slide into the spread; reduced-motion disables the slide). Also shipped: the `Book` stack (public API), the reveal layer at BOTH levels (`Book.revealBackground` = inside-cover base on the Book root via `--curl-reveal-background`; `Book.Page.revealBackground` = the per-page `revealLayer`, side-aware: left = W at rest, 0 once flipped), and the true curved curl as `variant="rounded"` (WebGL); the `flat` variant remains a sharp clip + crease gradient by design (the universal fallback).
 
+## Demo authoring (docs/demos)
+
+Conventions set by the docs audit — every new demo follows them:
+
+- **Fidelity is the law**: the displayed code must reproduce EXACTLY what the demo renders — copying the snippet yields the same result. Face helpers ship inside the displayed code (as extra file tabs), never as invisible imports.
+- **Configurator-first**: a demo whose knobs map to props is `type: 'configurator'` with the OFFICIAL Mantine controls — never custom below-the-stage controls. The displayed code REGENERATES from the live control values; props equal to `libraryValue` are omitted automatically.
+- The control rail sits BELOW the stage at any width thanks to `docs/styles/demo-overrides.css` (12 lines applying @mantinex/demo's own `<620px` container-query stacked layout unconditionally — the default right-hand rail squeezes the 2×W play-zone). ⚠️ It targets the package's hashed classes (`m_df4e856a`, `m_de00ac9`): re-verify after a major bump of `@mantinex/demo`.
+- **Multi-file tabs**: `code` accepts `{fileName, language, code}[]` rendered as CodeHighlightTabs. Kit helpers: `withFaceFile(code)` pairs Demo.tsx with the shared `Face.tsx` tab (`FACE_FILE`); withCover pairs its own `BookFaces.tsx`.
+- **code-as-function** for anything `{{props}}` cannot express — object props (`align`), structural toggles (faces' optional Back block, contentImage's objectFit), navigation UI: `(props) => string` + the kit's `propsSnippet([[name, value, libraryValue], …])`. Upstream `clearProps` hands the function only non-default values: props at `libraryValue` arrive as `undefined`.
+- Demos with page navigation (arrows / dots / slider) keep that UI inside the component AND inside the snippet — copy-paste-runnable end to end.
+- `key={variant}` on the Book inside configurator components forces a clean WebGL mount/unmount on variant switch (demo-only concern: keep it OUT of the snippet).
+
 ## Testing
 
 Jest with `jsdom`, `esbuild-jest` transform, CSS mocked via `identity-obj-proxy`. Component tests use the `@mantine-tests/core` render helper.
@@ -80,6 +111,8 @@ Jest with `jsdom`, `esbuild-jest` transform, CSS mocked via `identity-obj-proxy`
 - `Book/Book.test.tsx` — page-index math incl. the full face→turned→reported-face roundtrip (fixed point, liberal setter); the turn queue (riffle serialization, rapid-input queueing, the in-flight z-boost from `queueStep` in the SAME commit the step starts, the one-page interaction lock); a11y (keyboard turns, live region, composable onKeyDown); `pages` edges (empty array, missing back, per-page props, negative clamp); the INHERITABLE_PROPS type-level drift guard.
 
 > ⚠️ jsdom pointer gotcha: `fireEvent.pointerMove(...)` does NOT carry `clientX`/`clientY` (page-local coords become NaN and every release degrades to a snap-back). Gesture tests dispatch synthetic native events: `new Event('pointermove', {bubbles:true})` + `Object.assign(event, {pointerId, pointerType:'mouse', button:0, clientX, clientY})`. Also remember `@mantine-tests/core`'s `rerender` REMOUNTS the tree — drive state changes via keyboard/pointer instead of re-rendering.
+>
+> ⏱️ Riffle tests need REAL-time budgets: a multi-page jump costs `Σ max(80, min(flippingTime, riffleDuration/steps))` per in-between step PLUS a full `flippingTime` landing step — ~1.1s for 4 pages at defaults (the advance effect reads the BOOK-level `flippingTime`, not the per-page one). A too-short sleep/waitFor photographs the queue mid-run and reads as a deadlock — an entire ghost-hunt happened exactly this way. Budget generously, or shrink `flippingTime` on the Book.
 
 ## Ecosystem
 
