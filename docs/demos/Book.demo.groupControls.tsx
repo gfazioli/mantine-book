@@ -12,43 +12,29 @@ const COLORS: Array<{ front: string; back: string }> = [
   { front: '#9c36b5', back: '#862e9c' },
 ];
 
-const code = (props: Record<string, any>) => `
-import { useState } from 'react';
-import { Book, type BookPageData } from '@gfazioli/mantine-book';
-import { ActionIcon, Badge, Group, Stack, UnstyledButton } from '@mantine/core';
+const PAGER_FILE = `import { ActionIcon, Badge, Group, UnstyledButton } from '@mantine/core';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
-import { Face } from './Face';
 
-const COLORS = [
-  { front: '#4263eb', back: '#3b5bdb' },
-  { front: '#e8590c', back: '#d9480f' },
-  { front: '#2f9e44', back: '#2b8a3e' },
-  { front: '#9c36b5', back: '#862e9c' },
-];
-
-const pages: BookPageData[] = COLORS.map((colors, index) => ({
-  front: <Face label={\`Page \${index * 2 + 1}\`} color={colors.front} />,
-  back: <Face label={\`Page \${index * 2 + 2}\`} color={colors.back} />,
-}));
-
-function Demo() {
-  const [page, setPage] = useState(0);
-  const lastFace = pages.length * 2 - 1;
-
-  // One dot per reachable spread; clicking a far dot riffles through every
-  // page in between (turns are queued, one page in flight at a time).
-  const dotFaces = [0, ...pages.map((_, index) => index * 2 + 1)];
+/**
+ * Arrows + one dot per reachable spread + a page badge. Clicking a far dot
+ * riffles through every page in between (turns are queued, one page in
+ * flight at a time).
+ */
+export function Pager({
+  page,
+  pageCount,
+  onChange,
+}: {
+  page: number;
+  pageCount: number;
+  onChange: (page: number) => void;
+}) {
+  const lastFace = pageCount * 2 - 1;
+  const dotFaces = [0, ...Array.from({ length: pageCount }, (_, index) => index * 2 + 1)];
   const activeDot = Math.ceil(page / 2);
 
   return (
-    <Stack align="center" gap="md">
-      <Book${propsSnippet([
-        ['variant', props.variant, 'flat'],
-        ['flippingTime', props.flippingTime, 600],
-        ['riffleDuration', props.riffleDuration, 1000],
-        ['turnOrigin', props.turnOrigin, 'bottom'],
-      ])} width={260} height={360} page={page} onPageChange={setPage} pages={pages} />
-
+    <>
       <Group justify="center" gap="md">
         <ActionIcon
           variant="default"
@@ -56,7 +42,7 @@ function Demo() {
           size="lg"
           aria-label="Previous page"
           disabled={page === 0}
-          onClick={() => setPage((current) => Math.max(0, current - 2))}
+          onClick={() => onChange(Math.max(0, page - 2))}
         >
           <IconChevronLeft size={18} />
         </ActionIcon>
@@ -66,7 +52,7 @@ function Demo() {
               key={face}
               aria-label={index === 0 ? 'Closed book' : \`Spread \${index}\`}
               aria-current={index === activeDot ? 'page' : undefined}
-              onClick={() => setPage(face)}
+              onClick={() => onChange(face)}
               style={{
                 width: 12,
                 height: 12,
@@ -87,9 +73,7 @@ function Demo() {
           size="lg"
           aria-label="Next page"
           disabled={page === lastFace}
-          onClick={() =>
-            setPage((current) => (current === 0 ? 1 : Math.min(lastFace, current + 2)))
-          }
+          onClick={() => onChange(page === 0 ? 1 : Math.min(lastFace, page + 2))}
         >
           <IconChevronRight size={18} />
         </ActionIcon>
@@ -98,10 +82,116 @@ function Demo() {
       <Badge variant="light" size="lg" w={110} ta="center">
         page {page} / {lastFace}
       </Badge>
+    </>
+  );
+}`;
+
+const code = (props: Record<string, any>) => `
+import { useState } from 'react';
+import { Book, type BookPageData } from '@gfazioli/mantine-book';
+import { Stack } from '@mantine/core';
+import { Face } from './Face';
+import { Pager } from './Pager';
+
+const COLORS = [
+  { front: '#4263eb', back: '#3b5bdb' },
+  { front: '#e8590c', back: '#d9480f' },
+  { front: '#2f9e44', back: '#2b8a3e' },
+  { front: '#9c36b5', back: '#862e9c' },
+];
+
+const pages: BookPageData[] = COLORS.map((colors, index) => ({
+  front: <Face label={\`Page \${index * 2 + 1}\`} color={colors.front} />,
+  back: <Face label={\`Page \${index * 2 + 2}\`} color={colors.back} />,
+}));
+
+function Demo() {
+  const [page, setPage] = useState(0);
+
+  return (
+    <Stack align="center" gap="md">
+      <Book${propsSnippet([
+        ['variant', props.variant, 'flat'],
+        ['flippingTime', props.flippingTime, 600],
+        ['riffleDuration', props.riffleDuration, 1000],
+        ['turnOrigin', props.turnOrigin, 'bottom'],
+      ])} width={260} height={360} page={page} onPageChange={setPage} pages={pages} />
+      <Pager page={page} pageCount={pages.length} onChange={setPage} />
     </Stack>
   );
 }
 `;
+
+/**
+ * Arrows + one dot per reachable spread + a page badge. Clicking a far dot
+ * riffles through every page in between (turns are queued, one page in
+ * flight at a time).
+ */
+function Pager({
+  page,
+  pageCount,
+  onChange,
+}: {
+  page: number;
+  pageCount: number;
+  onChange: (page: number) => void;
+}) {
+  const lastFace = pageCount * 2 - 1;
+  const dotFaces = [0, ...Array.from({ length: pageCount }, (_, index) => index * 2 + 1)];
+  const activeDot = Math.ceil(page / 2);
+
+  return (
+    <>
+      <Group justify="center" gap="md">
+        <ActionIcon
+          variant="default"
+          radius="xl"
+          size="lg"
+          aria-label="Previous page"
+          disabled={page === 0}
+          onClick={() => onChange(Math.max(0, page - 2))}
+        >
+          <IconChevronLeft size={18} />
+        </ActionIcon>
+        <Group gap={8}>
+          {dotFaces.map((face, index) => (
+            <UnstyledButton
+              key={face}
+              aria-label={index === 0 ? 'Closed book' : `Spread ${index}`}
+              aria-current={index === activeDot ? 'page' : undefined}
+              onClick={() => onChange(face)}
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                transition: 'background-color 150ms ease, transform 150ms ease',
+                transform: index === activeDot ? 'scale(1.25)' : undefined,
+                backgroundColor:
+                  index === activeDot
+                    ? 'var(--mantine-primary-color-filled)'
+                    : 'var(--mantine-color-default-border)',
+              }}
+            />
+          ))}
+        </Group>
+        <ActionIcon
+          variant="default"
+          radius="xl"
+          size="lg"
+          aria-label="Next page"
+          disabled={page === lastFace}
+          onClick={() => onChange(page === 0 ? 1 : Math.min(lastFace, page + 2))}
+        >
+          <IconChevronRight size={18} />
+        </ActionIcon>
+      </Group>
+
+      <Badge variant="light" size="lg" w={110} ta="center">
+        page {page} / {lastFace}
+      </Badge>
+    </>
+  );
+}
 
 const PAGES: BookPageData[] = COLORS.map((colors, index) => ({
   front: <Face label={`Page ${index * 2 + 1}`} color={colors.front} />,
@@ -120,10 +210,6 @@ function Demo({
   turnOrigin?: TurnOrigin;
 }) {
   const [page, setPage] = useState(0);
-  const lastFace = PAGES.length * 2 - 1;
-
-  const dotFaces = [0, ...PAGES.map((_, index) => index * 2 + 1)];
-  const activeDot = Math.ceil(page / 2);
 
   return (
     <Stack align="center" gap="md">
@@ -139,56 +225,7 @@ function Demo({
         onPageChange={setPage}
         pages={PAGES}
       />
-
-      <Group justify="center" gap="md">
-        <ActionIcon
-          variant="default"
-          radius="xl"
-          size="lg"
-          aria-label="Previous page"
-          disabled={page === 0}
-          onClick={() => setPage((current) => Math.max(0, current - 2))}
-        >
-          <IconChevronLeft size={18} />
-        </ActionIcon>
-        <Group gap={8}>
-          {dotFaces.map((face, index) => (
-            <UnstyledButton
-              key={face}
-              aria-label={index === 0 ? 'Closed book' : `Spread ${index}`}
-              aria-current={index === activeDot ? 'page' : undefined}
-              onClick={() => setPage(face)}
-              style={{
-                width: 12,
-                height: 12,
-                borderRadius: '50%',
-                transition: 'background-color 150ms ease, transform 150ms ease',
-                transform: index === activeDot ? 'scale(1.25)' : undefined,
-                backgroundColor:
-                  index === activeDot
-                    ? 'var(--mantine-primary-color-filled)'
-                    : 'var(--mantine-color-default-border)',
-              }}
-            />
-          ))}
-        </Group>
-        <ActionIcon
-          variant="default"
-          radius="xl"
-          size="lg"
-          aria-label="Next page"
-          disabled={page === lastFace}
-          onClick={() =>
-            setPage((current) => (current === 0 ? 1 : Math.min(lastFace, current + 2)))
-          }
-        >
-          <IconChevronRight size={18} />
-        </ActionIcon>
-      </Group>
-
-      <Badge variant="light" size="lg" w={110} ta="center">
-        page {page} / {lastFace}
-      </Badge>
+      <Pager page={page} pageCount={PAGES.length} onChange={setPage} />
     </Stack>
   );
 }
@@ -196,7 +233,7 @@ function Demo({
 export const groupControls: MantineDemo = {
   type: 'configurator',
   component: Demo,
-  code: withFaceFile(code),
+  code: withFaceFile(code, { fileName: 'Pager.tsx', language: 'tsx', code: PAGER_FILE }),
   centered: true,
   overflow: VISIBLE_OVERFLOW,
   controls: [

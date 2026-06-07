@@ -49,7 +49,7 @@ export const curlRadius: MantineDemo = {
       prop: 'curlRadius',
       initialValue: 90,
       libraryValue: null,
-      min: 2,
+      min: 20,
       max: 200,
       step: 1,
     },
