@@ -16,7 +16,7 @@ function Demo() {
 }
 `;
 
-function Demo(props: Record<string, unknown>) {
+function Demo(props: any) {
   return (
     <Book.Page width={240} height={340} revealBackground="gray.2" {...props}>
       <Book.Page.Front>Front</Book.Page.Front>
