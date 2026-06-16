@@ -1,6 +1,6 @@
 {
   "name": "@gfazioli/mantine-book",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Realistic iBooks-style book component for React built with Mantine. Stack two-sided pages and turn them by dragging any point of the free edge in any direction, or through controlled page navigation — a pure-DOM reflection fold (flat) or a true 3D WebGL curl (rounded).",
   "homepage": "https://gfazioli.github.io/mantine-book/",
   "packageManager": "yarn@4.0.1",
