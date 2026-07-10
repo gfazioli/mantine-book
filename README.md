@@ -99,7 +99,3 @@ Your support helps me:
 Open source thrives when those who benefit can give back—even a small monthly contribution makes a real difference.
 
 💚 [Become a sponsor](https://github.com/sponsors/gfazioli?o=esc) today.
-
----
-
-[![Star History Chart](https://api.star-history.com/svg?repos=gfazioli/mantine-book&type=Timeline)](https://www.star-history.com/#gfazioli/mantine-book&Timeline)
