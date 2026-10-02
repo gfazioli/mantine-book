@@ -116,4 +116,4 @@ Jest with `jsdom`, `esbuild-jest` transform, CSS mocked via `identity-obj-proxy`
 
 ## Ecosystem
 
-Part of the Mantine Extensions ecosystem, derived from the `mantine-base-component` template. See the workspace `CLAUDE.md` (in the parent directory) for cross-cutting patterns and release process.
+Part of the Mantine Extensions ecosystem, derived from the `mantine-base-component` template. See the workspace (the parent directory): `.claude/rules/component-development.md` for the cross-cutting patterns, which loads with this repo's files, and the `/release` command for the release process.
