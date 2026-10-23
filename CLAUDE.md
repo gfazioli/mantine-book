@@ -1,119 +1,27 @@
 # CLAUDE.md
 
-## Project
+`@gfazioli/mantine-book` — a Mantine component for a realistic iBooks-style book in React. Engine internals and test traps: `.claude/rules/engine.md` (loads with `package/src`); demo conventions: `.claude/rules/demos.md` (loads with `docs/demos`).
 
-`@gfazioli/mantine-book` — a Mantine component for a realistic iBooks-style book in React.
+## Public API
 
-The PUBLIC API is the **`Book`**: a stack of two-sided pages (`<Book.Page>` with `<Book.Page.Front>` / `<Book.Page.Back>`, or the data-driven `pages={[{front, back}]}` prop) turned by dragging any point of the free edge, or programmatically via the controlled `page` state (face indices: page `i` → front `2i`, back `2i+1`; `onPageChange` reports the first visible face). Props set on the Book cascade to every page via optional context (`Book.context.ts`); a page can override locally. The single-sheet **`Curl` is the INTERNAL engine** (not exported): `Book.Page` is a thin context-merging wrapper over it, and the Book engine stacks/clones the pages (z-order, per-half pointer routing via `grabZone="sheet"`, controlled `flipped`).
+- **`Book`**: a stack of two-sided pages (`<Book.Page>` with `<Book.Page.Front>` / `<Book.Page.Back>`, or the data-driven `pages={[{front, back}]}` prop), turned by dragging any point of the free edge or through the controlled `page` state (face indices: page `i` → front `2i`, back `2i+1`; `onPageChange` reports the first visible face). Props set on the Book cascade to every page through optional context (`Book.context.ts`); a page can override them locally. The single-sheet **`Curl` is the INTERNAL engine** (not exported): `Book.Page` is a thin context-merging wrapper over it.
+- **`variant`**: `flat` (default) is a perpendicular-bisector reflection fold in pure DOM + CSS (no canvas) covering every grab point and drag direction; it stays a sharp clip + crease gradient by design, the universal fallback. StPageFlip ([Nodlik/StPageFlip](https://github.com/Nodlik/StPageFlip), MIT) is only a mathematical reference: its corner fold is the special case where the anchor is a corner. `rounded` (opt-in) is a true 3D curl on a WebGL canvas (cylinder wrap with a specular ridge, `curlRadius`); faces are snapshotted to textures during the curl and it falls back to `flat` on any WebGL/snapshot failure.
+- **`withCover`**: the first and last pages turn RIGID around the spine (the `hard` per-page prop), and the closed book is COMPACT, centred on the play-zone with a CSS-transition slide into the spread (reduced motion disables the slide).
+- **Reveal layer** at both levels: `Book.revealBackground` (inside-cover base, `--curl-reveal-background` on the Book root) and `Book.Page.revealBackground` (the per-page `revealLayer`, side-aware: left = W at rest, 0 once flipped).
 
-Two rendering paths, selected by the `variant` prop. The default `flat` variant is a **perpendicular-bisector reflection fold** (pure DOM + CSS, no canvas): the grabbed point on the free edge folds onto the pointer, so the crease is the perpendicular bisector of grab→pointer and the lifted flap is the page rectangle's anchor-side reflected across that crease (a CSS `det −1` matrix, which also mirrors the back-face content into a proper rotation). One code path covers every grab point and every drag direction — corner, mid-edge, up/down, both sides. StPageFlip's corner fold ([Nodlik/StPageFlip](https://github.com/Nodlik/StPageFlip), MIT, used only as a mathematical reference) is the special case where the anchor is a corner. The opt-in `rounded` variant draws a **true 3D curl on a WebGL canvas** (crease-aligned cylinder wrap, lit with a specular ridge, tuned by `curlRadius`); the faces are snapshotted to textures during the curl and it falls back to `flat` on any WebGL/snapshot failure.
+## Invariants
 
-## Commands
+- Faces are React-owned (no `innerHTML` cloning); no perpetual `requestAnimationFrame`: the rAF loop runs only during a drag or the release settle.
+- Demos: the displayed code reproduces EXACTLY what renders (helpers ship as file tabs, never as invisible imports); knob demos are configurators with the official Mantine controls, never custom controls; `key={variant}` stays out of the snippet.
 
-| Command | Purpose |
-|---------|---------|
-| `yarn build` | Build the npm package via Rollup |
-| `yarn dev` | Start the Next.js docs dev server (port 9281) |
-| `yarn test` | Full test suite (syncpack + oxfmt + typecheck + lint + jest) |
-| `yarn jest` | Run only Jest unit tests |
-| `yarn docgen` | Generate component API docs (docgen.json) |
-| `yarn docs:build` | Build the Next.js docs site for production |
-| `yarn docs:deploy` | Build and deploy docs to GitHub Pages |
-| `yarn lint` | Run oxlint + Stylelint |
-| `yarn format:write` | Format all files with oxfmt |
-| `yarn storybook` | Start Storybook dev server |
-| `yarn clean` | Remove build artifacts |
-| `yarn release:patch` | Bump patch version and deploy docs |
+## Build and CI
 
-> **Important**: After changing the public API (props, types, exports), always run `yarn clean && yarn build` before `yarn test`. The docs site consumes the compiled `package/dist`, so rebuild before checking the browser.
->
-> **CI** (`.github/workflows`): runs `yarn` (immutable install — fails on lockfile drift) → `npm run build` → `npm run docs:build` → `npm test`. Mirror all four locally before pushing.
+- After changing the public API (props, types, exports), always run `yarn clean && yarn build` before `yarn test`. The docs site consumes the compiled `package/dist`, so rebuild before checking the browser.
+- CI runs `yarn` (immutable install: fails on lockfile drift) → `npm run build` → `npm run docs:build` → `npm test`. Mirror all four locally before pushing.
 
-### Docs dev-loop (reliable restart)
+## Docs dev-loop
 
-Turbopack caches the workspace `dist` aggressively — after ANY `package/src` change a browser reload alone serves stale chunks. The full reliable cycle:
+Turbopack caches the workspace `dist`: after ANY `package/src` change a browser reload alone serves stale chunks. Reliable restart: `yarn build`; `lsof -ti :9281 | xargs kill`; `npx rimraf docs/.next` (`rm -rf` is denied by permissions); `yarn dev` ALWAYS through the Bash tool's `run_in_background` (nohup in a subshell dies with the tool's shell, exit 143); then poll `curl -s -o /dev/null -w "%{http_code}" http://localhost:9281/` until 200 (a cold first compile can take 30 s+).
 
-```bash
-yarn build                      # rebuild the package dist
-lsof -ti :9281 | xargs kill     # stop any running dev server
-npx rimraf docs/.next           # drop the Turbopack cache (rm -rf is denied by permissions)
-yarn dev                        # restart — ALWAYS via the Bash tool's run_in_background
-                                # (nohup in a subshell dies with the tool's shell, exit 143)
-until curl -s -o /dev/null -w "%{http_code}" http://localhost:9281/ | grep -q 200; do sleep 1; done
-curl -s -o /dev/null http://localhost:9281/   # warm-up: first compile can take 30s+ on a cold cache
-```
-
-Browser-driving gotchas:
-
-- **Next dev FOUC-guard**: `<style data-next-hide-fouc>body{display:none}</style>` can stay orphaned after a server restart with open tabs — the page looks blank while React actually runs (demo images still load). Remove the style tag via JS or retest in a FRESH tab before concluding anything is broken.
-- **Held fold for inspection**: dispatch real `new PointerEvent('pointerdown'|'pointermove', { bubbles: true, pointerId, pointerType: 'mouse', button: 0, clientX, clientY })` on the page's restSheet, then moves on `window`, WITHOUT the `pointerup` — generic `Event` objects don't always reach React's handlers in a real browser. Always release held pointers when done: a forgotten pointerId corrupts later interactions (two ghost drags deadlocked a debugging session).
-
-## Architecture
-
-### Workspace Layout
-
-Yarn workspaces monorepo with `package/` (npm package) and `docs/` (Next.js 16 documentation site).
-
-### Package Source (`package/src/`)
-
-- `package/src/Book/Book.tsx` — The PUBLIC root component (Mantine factory, name `Book`). Owns the page stack via the memoized `BookSheet` wrapper (primitives + stable callbacks, so a queue transition re-renders ~4 pages, not all N): clones each `<Book.Page>` (or builds them from the `pages` prop) injecting `width/height/flipped/grabZone="sheet"/disabled/warmSnapshots/onFold/onFlip`; computes per-page z-order (the in-flight page is raised from `queueStep` in the SAME commit its `flipped` flips — waiting for onFold painted a one-frame z-inversion, the start-of-turn flash); runs the TURN QUEUE (one page in flight; multi-page jumps riffle with compressed `stepTime = clamp(riffleDuration/steps)`, in-between steps forced `variant="flat"` with warm capture suspended until ≤2 turns remain, so only the landing page curls — and its textures pre-capture during the second-to-last step); maps the public face-based `page` index ↔ turned pages (`faceToTurnedPages` / `turnedPagesToFace`, exported + unit-tested); provides the optional context + the shared WebGL pool holder.
-- `package/src/Book/BookPage.tsx` — `Book.Page`: thin wrapper over the internal `Curl` engine that merges the Book context (page props win); `Book.Page.Front` / `Book.Page.Back` are face markers minted via `makeFaceMarker`.
-- `package/src/Book/Book.context.ts` — `BookInheritableProps` + the optional `BookContext` (null outside a Book, so a standalone page works).
-- `package/src/Curl/Curl.tsx` — INTERNAL single-sheet engine (Mantine factory pattern, not exported). Parses the face-marker children, wires the `useCurlController` fold state machine, renders the DOM reflection layers for `flat`, lazily mounts `CurlWebglLayer` (React.lazy + Suspense) for `variant="rounded"`, and renders the RIGID `hardSheet` (flat 3D rotation around the spine, both faces backface-culled, θ = acos(x/W) so the free edge tracks the drag) when `hard` — the cover renderer; same controller, no WebGL, no clip. Supports the controlled `flipped` prop (external changes run the same corner-curl settle animation as a drag) and `grabZone="sheet"` (root pass-through + pointer surface on the resting sheet — the Book's per-half routing). In rounded mode the DOM flat fold (flap included) STANDS IN until the layer reports its first real frame (`webglReady`/`flatFoldVisible`) — so a fold whose snapshots are still capturing degrades to the genuine flat fold instead of flashing the page beneath.
-- `package/src/Curl/Curl.module.css` — Static framing for the layers (`root`, `restSheet`, `curlSheet`, `face`). Per-frame transform + clip-path are applied inline from React.
-- `package/src/Curl/webgl/glRenderer.ts` — Raw WebGL2 renderer for the `rounded` variant: a tessellated page mesh wrapped around the crease (cylinder model), front/back textures, smooth normals, Lambert + specular lighting with an edge-on self-shadow — NORMALIZED so a flat viewer-facing page reads exactly its base color (without it the landed page sat at ~94% brightness and the DOM handoff popped ~6% brighter). `resize()` is a no-op at unchanged sizes; re-acquirers call `clear()` to drop the previous page's stale frame. No React/DOM here.
-- `package/src/Curl/webgl/CurlWebglLayer.tsx` — Client-only layer. Keeps the live faces off-screen as snapshot sources and captures them to plain IMAGES, but only while WARM (`warmSnapshots`, key-validated on size/back/flipped — the Book warms just the two top-of-stack pages) or once the fold starts; `onReadyChange` reports true only after a frame for the CURRENT fold is really drawn (the radius tail dives quadratically to ~0 over the last 18% so the wrap converges to the flat reflection — no settle snap). The GPU side is borrowed from the shared pool while the fold is active (lease → adopt the pooled canvas into a positioned mount → upload the cached images → per-frame render → release/park). Falls back via `onUnavailable` on any WebGL/snapshot failure.
-- `package/src/Curl/webgl/pool.ts` + `poolContext.ts` — ONE WebGL2 context per Book (the turn-queue invariant makes a single renderer sufficient): `CurlWebglPool` lazily creates renderer+canvas on first acquire (an untouched book costs zero contexts), leases are last-wins, `dispose()` reclaims the slot with `WEBGL_lose_context` on Book unmount. The Book provides an empty `CurlWebglPoolHolder` via context (type-only import — no renderer in the main chunk); a standalone page owns a local pool-of-one.
-- `package/src/Curl/webgl/snapshot.ts` — `captureFaceTexture` via lazy `@zumer/snapdom` (origin-clean data-URL → no WebGL taint).
-- `package/src/CurlFace/CurlFace.tsx` — Type/marker for a face (`align`, content). Both `Curl.Front` and `Curl.Back` are typed as `CurlFace`.
-- `package/src/flip/geometry.ts` — Pure reflection-fold math, no React/DOM: `computeReflectionFold(anchor, target, W, H)` (crease, `flatFront`/`flap` polygons via half-plane clip, the `det −1` CSS matrix, progress), `clampReflectionTarget` (two-disc clamp so the spine stays flat — the generalization of StPageFlip's `checkPositionAtCenterLine`), `shouldCompleteFold` (side-aware release decision), `computeFoldShadow`, `pointsToCssPolygon`.
-- `package/src/flip/useCurlController.ts` — The single fold state machine (composes `useDragController` + `useFlipAnimator`); returns the fold + `flipped`/`folding` flags + `dragHandlers`. Both the DOM and the WebGL renderers consume this one source of truth. `onFold` fires with `phase: 'grab'` at POINTERDOWN (before any move): the Book locks the stack at the grab itself, so a second finger — or a queue step scheduled in the down→first-move window — can never fight the fold (orphaned steps deadlocked the queue); a drag release also drops any pending queue step as a safety net.
-- `package/src/flip/drag.ts` — `useDragController` hook (pointer state machine + rolling velocity sampling → click / drag / swipe).
-- `package/src/flip/animator.ts` — `useFlipAnimator` hook (rAF-driven lerp for the release settle).
-- `index.ts` — Public API barrel (component + types: `CurlProps`/`CurlFactory`/`CurlStylesNames`/…, `CurlFaceProps`, and the pure `Point` / `ReflectionFold`).
-
-### Build Pipeline
-
-Rollup → dual ESM/CJS with `'use client'` banner. CSS modules hashed with `hash-css-selector` (`me` prefix). TypeScript declarations via `rollup-plugin-dts`. CSS split into `styles.css` and `styles.layer.css`.
-
-## Component Details
-
-- **Compound pattern**: `Curl.Front` / `Curl.Back` are registered as static properties on `Curl` (Mantine factory `staticComponents`). They are markers — the content is rendered once by `Curl` and owned by React (no `innerHTML` cloning), so event handlers inside a face stay alive.
-- **Play-zone**: the root box is `2·W × H`; the sheet rests in the right half, the spine (hinge) is the centre seam (`x = 0` in page coords, `x = W` in layer coords), and the curl sweeps left. Once flipped, the sheet rests in the left half and the anchor moves to `x = −W` (side-aware).
-- **Reflection fold**: `restSheet` shows the flat resting face clipped to `flatFront`; `curlSheet` shows the lifting (opposite) face clipped to `flap` and transformed by the reflection matrix. The flap content is pre-mirrored with `scaleX(-1)` so the `det −1` matrix composes to a proper rotation and the back face reads correctly.
-- **Release**: settles via `useFlipAnimator` — `shouldCompleteFold` decides complete (sweep to the opposite edge, toggling the resting side) vs snap-back (return to the anchor edge), from the threshold or a side-aware swipe.
-- **Animation model**: no perpetual `requestAnimationFrame` — the sheet is quiescent at rest. The rAF loop runs only during a drag or the release settle.
-- **Pointer events**: single PointerEvents handler. `touch-action: pan-y` keeps vertical scroll working; `mobileScrollSupport` (default true) waits for a horizontal-biased gesture before claiming the touch.
-- **Shadows**: derived from the crease (`computeFoldShadow`). The `shadowLayer` SVG overlay paints the reflected flap with a gradient anchored at the crease (dark where the page curves away → transparent at the free edge); the cast halo is a `drop-shadow` filter on `curlSheet`. Both scale with `shadowOpacity` and a `sin(progress·π)` strength curve (0 at rest, peak mid-fold, 0 at a full turn).
-- **Styles API names**: `root`, `restSheet`, `curlSheet`, `shadowLayer`, `revealLayer`, `face` (Curl/page level) and `root`, `page` (Book level). CSS vars on `root`: `--curl-page-width`, `--curl-page-height`, `--curl-page-background`, `--curl-shadow-color`, `--curl-reveal-background`.
-
-> Everything on the roadmap SHIPPED — including `withCover` (the first and last pages turn RIGID around the spine via the `hard` per-page prop + the closed book is COMPACT, centered on the play-zone with a CSS-transition slide into the spread; reduced-motion disables the slide). Also shipped: the `Book` stack (public API), the reveal layer at BOTH levels (`Book.revealBackground` = inside-cover base on the Book root via `--curl-reveal-background`; `Book.Page.revealBackground` = the per-page `revealLayer`, side-aware: left = W at rest, 0 once flipped), and the true curved curl as `variant="rounded"` (WebGL); the `flat` variant remains a sharp clip + crease gradient by design (the universal fallback).
-
-## Demo authoring (docs/demos)
-
-Conventions set by the docs audit — every new demo follows them:
-
-- **Fidelity is the law**: the displayed code must reproduce EXACTLY what the demo renders — copying the snippet yields the same result. Face helpers ship inside the displayed code (as extra file tabs), never as invisible imports.
-- **Configurator-first**: a demo whose knobs map to props is `type: 'configurator'` with the OFFICIAL Mantine controls — never custom below-the-stage controls. The displayed code REGENERATES from the live control values; props equal to `libraryValue` are omitted automatically.
-- The control rail sits BELOW the stage at any width thanks to `docs/styles/demo-overrides.css` (12 lines applying @mantinex/demo's own `<620px` container-query stacked layout unconditionally — the default right-hand rail squeezes the 2×W play-zone). ⚠️ It targets the package's hashed classes (`m_df4e856a`, `m_de00ac9`): re-verify after a major bump of `@mantinex/demo`.
-- **Multi-file tabs**: `code` accepts `{fileName, language, code}[]` rendered as CodeHighlightTabs. Kit helpers: `withFaceFile(code)` pairs Demo.tsx with the shared `Face.tsx` tab (`FACE_FILE`); withCover pairs its own `BookFaces.tsx`.
-- **code-as-function** for anything `{{props}}` cannot express — object props (`align`), structural toggles (faces' optional Back block, contentImage's objectFit), navigation UI: `(props) => string` + the kit's `propsSnippet([[name, value, libraryValue], …])`. Upstream `clearProps` hands the function only non-default values: props at `libraryValue` arrive as `undefined`.
-- Demos with page navigation (arrows / dots / slider) keep that UI inside the component AND inside the snippet — copy-paste-runnable end to end.
-- `key={variant}` on the Book inside configurator components forces a clean WebGL mount/unmount on variant switch (demo-only concern: keep it OUT of the snippet).
-
-## Testing
-
-Jest with `jsdom`, `esbuild-jest` transform, CSS mocked via `identity-obj-proxy`. Component tests use the `@mantine-tests/core` render helper.
-
-- `package/src/flip/geometry.test.ts` — pure math: `clampReflectionTarget`, `computeReflectionFold` (crease reflects anchor→target, `det = −1`, mid-edge → full-height near-vertical crease, progress, up/down tilt symmetry, flipped side, no degenerate full-turn split), `shouldCompleteFold` (side-aware), `turnAnchorY`/`turnTargetY` (corner arc to the page middle, top/bottom mirror symmetry, eased clamp), `pointsToCssPolygon`.
-- `package/src/flip/drag.test.ts` — the pure helpers AND the `useDragController` hook (renderHook + a mocked `performance.now` clock + synthetic window pointer events): mouse/touch flows, drag/swipe/click classification with rolling-window velocity, mobileScrollSupport claim/hand-back, pointerId isolation, secondary-button rejection, unmount detach. `package/src/flip/animator.test.ts` — the settle animator.
-- `package/src/Curl/Curl.test.tsx` — render smoke; both faces React-owned and present in the DOM (the regression that motivated the rebuild); event handlers alive inside a face; blank Back when omitted; `disabled` omits the handlers; RELEASE SEMANTICS end-to-end (past-threshold completes, slow short drag snaps back, fast under-threshold swipe completes, click settles); `grabZone` pointer routing (root pass-through + restSheet surface, disabled keeps it off, bubbling drives the fold); reveal-layer side-awareness (left = W at rest, 0 once flipped).
-- `package/src/Book/Book.test.tsx` — page-index math incl. the full face→turned→reported-face roundtrip (fixed point, liberal setter); the turn queue (riffle serialization, rapid-input queueing, the in-flight z-boost from `queueStep` in the SAME commit the step starts, the one-page interaction lock); a11y (keyboard turns, live region, composable onKeyDown); `pages` edges (empty array, missing back, per-page props, negative clamp); the INHERITABLE_PROPS type-level drift guard.
-
-> ⚠️ jsdom pointer gotcha: `fireEvent.pointerMove(...)` does NOT carry `clientX`/`clientY` (page-local coords become NaN and every release degrades to a snap-back). Gesture tests dispatch synthetic native events: `new Event('pointermove', {bubbles:true})` + `Object.assign(event, {pointerId, pointerType:'mouse', button:0, clientX, clientY})`. Also remember `@mantine-tests/core`'s `rerender` REMOUNTS the tree — drive state changes via keyboard/pointer instead of re-rendering.
->
-> ⏱️ Riffle tests need REAL-time budgets: a multi-page jump costs `Σ max(80, min(flippingTime, riffleDuration/steps))` per in-between step PLUS a full `flippingTime` landing step — ~1.1s for 4 pages at defaults (the advance effect reads the BOOK-level `flippingTime`, not the per-page one). A too-short sleep/waitFor photographs the queue mid-run and reads as a deadlock — an entire ghost-hunt happened exactly this way. Budget generously, or shrink `flippingTime` on the Book.
-
-## Ecosystem
-
-Part of the Mantine Extensions ecosystem, derived from the `mantine-base-component` template. See the workspace (the parent directory): `.claude/rules/component-development.md` for the cross-cutting patterns, which loads with this repo's files, and the `/release` command for the release process.
+- **Next dev FOUC guard**: `<style data-next-hide-fouc>body{display:none}</style>` can stay orphaned after a server restart with open tabs: the page looks blank while React runs (demo images still load). Remove the tag via JS or retest in a FRESH tab before concluding anything is broken.
+- **Held fold for inspection**: dispatch real `new PointerEvent('pointerdown'|'pointermove', { bubbles: true, pointerId, pointerType: 'mouse', button: 0, clientX, clientY })` on the page's `restSheet`, then moves on `window`, WITHOUT the `pointerup`: generic `Event` objects don't always reach React's handlers in a real browser. Always release held pointers when done: a forgotten pointerId corrupts later interactions.
